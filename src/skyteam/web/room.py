@@ -6,7 +6,7 @@ import time
 from typing import Any
 
 from skyteam.game.engine import SEATS, Game, IllegalMove
-from skyteam.game.scenarios import BY_ID, SCENARIOS
+from skyteam.game.scenarios import ABILITIES, BY_ID, SCENARIOS
 from skyteam.progress import Progress
 
 REALTIME_SECONDS = 60
@@ -35,6 +35,7 @@ class Room:
         self.host: str | None = None
         self.scenario = SCENARIOS[0].id
         self.hotseat = False
+        self.abilities: list[str] = []
         self.seats: dict[str, str | None] = dict.fromkeys(SEATS)
         self.game: Game | None = None
         self.recorded = False
@@ -92,6 +93,8 @@ class Room:
             "isHost": member_id == self.host,
             "scenario": self.scenario,
             "hotseat": self.hotseat,
+            "abilities": self.abilities,
+            "abilityCatalog": {k: {"name": v[0], "text": v[1]} for k, v in ABILITIES.items()},
             "seats": {s: self._seat_public(self.seats[s]) for s in SEATS},
             "mySeats": [s for s in SEATS if self.seats[s] == member_id],
             "status": "lobby" if self.game is None else ("over" if self.game.result else "playing"),
@@ -124,6 +127,13 @@ class Room:
             if msg.get("id") not in BY_ID:
                 raise RoomError("Unknown scenario")
             self.scenario = msg["id"]
+            self.abilities = self.abilities[: BY_ID[self.scenario].abilities]
+        elif kind == "abilities":
+            self._need_lobby(host)
+            picked = [a for a in dict.fromkeys(msg.get("keys", [])) if a in ABILITIES]
+            if len(picked) > BY_ID[self.scenario].abilities:
+                raise RoomError("That scenario uses fewer Special Ability cards")
+            self.abilities = picked
         elif kind == "hotseat":
             self._need_lobby(host)
             self.hotseat = bool(msg.get("on"))
@@ -151,7 +161,7 @@ class Room:
             self._need_lobby(host)
             if any(self.seats[s] is None for s in SEATS):
                 raise RoomError("Both the Pilot and the Co-Pilot seat need a player")
-            self.game = Game(self.scenario, hotseat=self.hotseat)
+            self.game = Game(self.scenario, hotseat=self.hotseat, abilities=self.abilities)
             self.recorded = False
             self.deadline = None
         elif kind == "lobby":

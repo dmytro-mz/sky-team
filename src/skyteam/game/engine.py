@@ -12,10 +12,12 @@ FINAL_ROUND = 7
 SPIN = 3  # the axis arrow reaching ±3 spins the plane
 MAX_COFFEE = 3
 REROLL_POOL = 3
-WIND_RING = (0, 1, 2, 2, 1, 0, -1, -1)  # speed added by each wind position, position 0 is the centre
-TRAFFIC_FACES = (2, 3, 3, 4, 4, 5)
+# The Wind Ring, clockwise from the white space the nose points at when the game starts (+3, a strong tail wind).
+WIND_RING = (3, 3, 2, 2, 1, 0, -1, -2, -2, -3, -3, -3, -2, -2, -1, 0, 1, 2, 2, 3)
+TRAFFIC_FACES = (1, 2, 3, 4, 5, 6)
+PLANE_SUPPLY = 12
 KEROSENE_BURN = 6
-INTERN_TOKENS = 3
+INTERN_TOKENS = 6
 
 GEAR_VALUES = ((1, 2), (3, 4), (5, 6))
 FLAP_VALUES = ((1, 2), (2, 3), (4, 5), (5, 6))
@@ -51,7 +53,7 @@ def build_slots(scenario: Scenario) -> dict[str, dict[str, Any]]:
     if "ice" in scenario.modules:
         for i, v in enumerate(ICE_VALUES):
             add(f"ice_pilot_{i}", "pilot", "ice", (v,), i)
-            add(f"ice_copilot_{i}", "copilot", "ice", (v,), i)
+            add(f"ice_copilot_{i}", "any", "ice", (v,), i)
     else:
         for i, v in enumerate(BRAKE_VALUES):
             add(f"brake_{i}", "pilot", "brake", (v,), i)
@@ -66,7 +68,9 @@ def build_slots(scenario: Scenario) -> dict[str, dict[str, Any]]:
 
 
 class Game:
-    def __init__(self, scenario_id: str, seed: int | None = None, hotseat: bool = False) -> None:
+    def __init__(
+        self, scenario_id: str, seed: int | None = None, hotseat: bool = False, abilities: list[str] | None = None
+    ) -> None:
         self.scenario: Scenario = BY_ID[scenario_id]
         self.rng = random.Random(seed)
         self.hotseat = hotseat
@@ -92,6 +96,7 @@ class Game:
         self.wind = 0
         self.speed: int | None = None
         self.interns: list[int] = []
+        self.intern_left = 0  # tokens already taken from the Pilot's end of the board
         self.pending_token: dict[str, Any] | None = None
         self.reroll: dict[str, Any] | None = None  # {"picks": {seat: ids|None}}
         self.swap: dict[str, Any] | None = None  # working together offer {seat, die}
@@ -103,7 +108,10 @@ class Game:
         self.traffic_rolls: list[int] = []
         if "intern" in sc.modules:
             self.interns = self.rng.sample(range(1, 7), INTERN_TOKENS)
-        self.abilities = self.rng.sample(sorted(ABILITIES), sc.abilities) if sc.abilities else []
+        chosen = [a for a in (abilities or []) if a in ABILITIES][: sc.abilities]
+        pool = [a for a in sorted(ABILITIES) if a not in chosen]
+        chosen += self.rng.sample(pool, sc.abilities - len(chosen)) if sc.abilities > len(chosen) else []
+        self.abilities = chosen
         self.rerolls_on_track = len([r for r in sc.rerolls if r > 1])
         if 1 in sc.rerolls:
             self.rerolls = 1
@@ -169,8 +177,11 @@ class Game:
             v = self.rng.choice(TRAFFIC_FACES)
             self.traffic_rolls.append(v)
             target = min(self.position + v - 1, self.last_space)
+            if sum(self.planes) >= PLANE_SUPPLY:
+                self.say(f"Traffic die: {v}. No Airplane tokens left in the supply.", "info")
+                continue
             self.planes[target] += 1
-            self.say(f"Traffic die: {v}. An airplane appears {v - 1} space(s) ahead.", "warn")
+            self.say(f"Traffic die: {v}. An airplane appears on space {v} of the approach.", "warn")
 
     def start_dice(self) -> None:
         self.phase = "place"
@@ -260,8 +271,7 @@ class Game:
         if "wind" in self.mods:
             step = abs(self.axis)
             self.wind = (self.wind + step * (1 if self.axis > 0 else -1)) % len(WIND_RING)
-            if step:
-                self.say(f"The wind turns: it now adds {self.wind_speed():+d} to your speed.", "info")
+            self.say(f"The wind token turns {step} space(s): it now adds {self.wind_speed():+d} to your speed.", "info")
         if "control" in self.abilities and p["value"] == c["value"]:
             self.gain_coffee("Control")
         if abs(self.axis) >= SPIN:
@@ -430,6 +440,7 @@ class Game:
                 self.say("Ice Brakes engaged.", "good")
         elif kind == "intern":
             token = self.interns.pop(0 if seat == "pilot" else -1)
+            self.intern_left += seat == "pilot"
             self.pending_token = {"seat": seat, "value": token}
             self.say(f"The Intern hands over a {token}. Place it like a die (no Concentration).", "info", seat)
             if not self.token_slots():
@@ -444,8 +455,8 @@ class Game:
         ):
             self.sync_done = True
             v = self.rng.choice(TRAFFIC_FACES)
-            self.dice["copilot"].append(self.new_die("copilot", v, wild=True))
-            self.say(f"Synchronisation: the Traffic die shows {v}. The Co-Pilot places it anywhere.", "good")
+            self.dice[seat].append(self.new_die(seat, v, wild=True))
+            self.say(f"Synchronisation: the Traffic die shows {v}. {seat.capitalize()} places it anywhere.", "good")
 
     def token_slots(self) -> list[str]:
         tok = self.pending_token
@@ -454,7 +465,7 @@ class Game:
         return [
             sid
             for sid, s in self.slots.items()
-            if s["kind"] not in ("conc", "intern") and not self.can_use(tok["seat"], {"wild": True}, s, tok["value"])
+            if s["kind"] not in ("conc", "intern") and not self.can_use(tok["seat"], {"wild": False}, s, tok["value"])
         ]
 
     def do_token(self, seat: str, action: dict[str, Any]) -> None:
@@ -464,8 +475,7 @@ class Game:
         slot = self.slots.get(str(action.get("slot")))
         if slot is None or slot["kind"] in ("conc", "intern"):
             raise IllegalMove("The token can't go there.")
-        fake = {"wild": True}
-        if bad := self.can_use(seat, fake, slot, tok["value"]):
+        if bad := self.can_use(seat, {"wild": False}, slot, tok["value"]):
             raise IllegalMove(bad)
         self.pending_token = None
         self.drop(seat, slot, {"id": -1, "seat": seat, "value": tok["value"], "orig": tok["value"], "coffee": 0})
@@ -624,6 +634,7 @@ class Game:
             "speed": self.speed,
             "brakeLimit": self.brake_limit(),
             "interns": list(self.interns),
+            "internLeft": self.intern_left,
             "pendingToken": self.pending_token
             if viewer in (None, (self.pending_token or {}).get("seat"))
             else ({"seat": self.pending_token["seat"]} if self.pending_token else None),

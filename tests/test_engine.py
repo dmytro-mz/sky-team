@@ -225,7 +225,8 @@ def test_airport_must_be_reached_by_final_round():
 
 def test_traffic_die_places_airplanes():
     g = Game("lhr-fog", 1)
-    assert sum(g.planes) == 1 and g.traffic_rolls
+    printed = sum(g.scenario.planes.values())
+    assert len(g.traffic_rolls) == 2 and sum(g.planes) == printed + 2
 
 
 def test_kerosene_burns_when_unused_and_leak_on_engines():
@@ -239,11 +240,11 @@ def test_kerosene_burns_when_unused_and_leak_on_engines():
     g.after_move()
     assert g.kerosene == 14
     h = Game("prg-leak", 2)
-    h.planes = [0] * 7
+    h.planes = [0] * h.scenario.length
     start_round(h, [3, 1, 1, 1], [1, 1, 1, 1])
     put(h, "pilot", 0, "engine_pilot")
     put(h, "copilot", 0, "engine_copilot")
-    assert h.kerosene == 18 - 3
+    assert h.kerosene == 20 - 3
 
 
 def test_intern_flow():
@@ -274,3 +275,21 @@ def test_view_hides_opponent_dice():
         g.apply(s, {"t": "ready"})
     v = g.view("pilot")
     assert all("value" in d for d in v["dice"]["pilot"]) and all("value" not in d for d in v["dice"]["copilot"])
+
+
+def test_wind_ring_has_twenty_spaces_and_starts_at_plus_three():
+    from skyteam.game.engine import WIND_RING
+
+    assert len(WIND_RING) == 20 and WIND_RING[0] == 3 and WIND_RING[10] == -3
+    assert all(WIND_RING[i] == WIND_RING[-i] for i in range(1, 20))
+
+
+def test_every_track_matches_the_box():
+    from skyteam.game.scenarios import SCENARIOS
+
+    assert len(SCENARIOS) == 21
+    for sc in SCENARIOS:
+        assert sc.length in (5, 6, 7, 8)
+        assert all(0 <= i < sc.length for i in (*sc.planes, *sc.traffic, *sc.turns))
+        assert sc.length - 1 not in sc.traffic and sc.length - 1 not in sc.turns
+        assert sum(sc.planes.values()) <= 12

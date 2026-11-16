@@ -1,5 +1,7 @@
 """Two browser contexts join one table and play a round (dev smoke test)."""
+
 import time
+
 from playwright.sync_api import sync_playwright
 
 with sync_playwright() as p:
@@ -26,8 +28,15 @@ with sync_playwright() as p:
     time.sleep(0.3)
     c.click("text=Roll the dice")
     time.sleep(0.6)
-    print("pilot sees dice:", a.locator(".tray.pilot button.die").count(), "copilot dice buttons:", a.locator(".tray.copilot button.die").count())
-    print("copilot page sees:", c.locator(".tray.copilot button.die").count(), c.locator(".tray.pilot button.die").count())
+    print(
+        "pilot sees dice:",
+        a.locator(".tray.pilot button.die").count(),
+        "copilot dice buttons:",
+        a.locator(".tray.copilot button.die").count(),
+    )
+    print(
+        "copilot page sees:", c.locator(".tray.copilot button.die").count(), c.locator(".tray.pilot button.die").count()
+    )
     a.locator(".tray.pilot button.die").first.click()
     a.locator(".slot.hot").first.click()
     time.sleep(0.5)

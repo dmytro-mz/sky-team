@@ -1,29 +1,40 @@
-// The cockpit: one big SVG redrawn from the game state. Positions are in a 1600 x 900 space.
+// The Control Panel of the box, drawn as one SVG from the game state: silver-blue panel, blue (Pilot) and orange
+// (Co-Pilot) spaces with switches, the attitude dial with its speed gauge, and the two sliding strips (Approach
+// Track and Altitude Track) with their navy screens, cream tabs and airplane tokens.
 import {
-  COLORS, THEMES, cloud, coffeeIcon, dieSVG, icon, lamp, planeFront, planeToken, rerollIcon, runway, screw, trafficIcon,
-  PLANE_PATH,
+  COLORS, airport, cloud, coffeeIcon, cube, dieSVG, icon, landingPlane, moduleChip, planeToken, rerollIcon, screw,
+  starBadge, PLANE_PATH,
 } from "./art.js";
 
-const W = 1600, H = 980;
-const SPIN = 3, STEP = 22;
-const tone = (seat) => (seat === "pilot" ? "pilot" : "copilot");
-const el = (s) => s;
-
-function defs(theme) {
-  const t = THEMES[theme] || THEMES.day;
-  return `<defs>
-  <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2d3b4a"/><stop offset="1" stop-color="#17202a"/></linearGradient>
-  <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${t[0]}"/><stop offset="1" stop-color="${t[1]}"/></linearGradient>
-  <linearGradient id="bezel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b6b7c"/><stop offset="1" stop-color="#1c2631"/></linearGradient>
-  <linearGradient id="dialface" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b86d6"/><stop offset="0.62" stop-color="#9fd3f5"/><stop offset="0.62" stop-color="#6d5b43"/><stop offset="1" stop-color="#3f3426"/></linearGradient>
-  <filter id="glow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-  <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-opacity=".5"/></filter>
-  <clipPath id="appclip"><rect x="24" y="24" width="528" height="240" rx="18"/></clipPath>
-  </defs>`;
-}
+const STEP = 25; // degrees of dial per Axis mark
+const CX = 620; // centre line of the panel
+const PANEL = { x: 180, y: 600, w: 880, h: 950 };
+const DIAL = { x: CX, y: 872, r: 150 };
+const WIN_Y = 610; // top of the little screen where the current space shows
+const CELL = 64;
 
 const txt = (x, y, s, size = 18, fill = "#c8d4e0", anchor = "middle", extra = "") =>
-  `<text x="${x}" y="${y}" text-anchor="${anchor}" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="${size}" letter-spacing="1.2" fill="${fill}" ${extra}>${s}</text>`;
+  `<text x="${x}" y="${y}" text-anchor="${anchor}" font-family="Barlow Condensed, Barlow, sans-serif" font-weight="700" font-size="${size}" letter-spacing="1" fill="${fill}" ${extra}>${s}</text>`;
+const rad = (deg) => (deg * Math.PI) / 180;
+const polar = (cx, cy, r, deg) => [cx + r * Math.sin(rad(deg)), cy - r * Math.cos(rad(deg))];
+
+function defs() {
+  return `<defs>
+  <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d7e2ea"/><stop offset="1" stop-color="#b3c4d1"/></linearGradient>
+  <linearGradient id="gPilot" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4b83ee"/><stop offset="1" stop-color="#1b43b3"/></linearGradient>
+  <linearGradient id="gCopilot" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffae48"/><stop offset="1" stop-color="#e8650b"/></linearGradient>
+  <linearGradient id="gAny" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#3c74e3"/><stop offset=".45" stop-color="#7a82c0"/><stop offset=".55" stop-color="#d9894a"/><stop offset="1" stop-color="#f58a1f"/></linearGradient>
+  <linearGradient id="navy" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b1730"/><stop offset=".7" stop-color="#0e2347"/><stop offset="1" stop-color="#12376a"/></linearGradient>
+  <linearGradient id="silver" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9ea4aa"/><stop offset=".5" stop-color="#c3c7cb"/><stop offset="1" stop-color="#9ea4aa"/></linearGradient>
+  <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1f8fe0"/><stop offset="1" stop-color="#8fd2f6"/></linearGradient>
+  <linearGradient id="earth" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9824a"/><stop offset="1" stop-color="#6b4424"/></linearGradient>
+  <linearGradient id="fuel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd23a"/><stop offset=".5" stop-color="#f29a1c"/><stop offset="1" stop-color="#d93a2a"/></linearGradient>
+  <filter id="glow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-opacity=".45"/></filter>
+  <clipPath id="disc"><circle r="${DIAL.r}"/></clipPath>
+  <clipPath id="winclip"><rect x="-200" y="-400" width="1800" height="${WIN_Y + CELL + 400 + 3}"/></clipPath>
+  </defs>`;
+}
 
 /** Is the selected die/token allowed on this slot (client-side mirror of the engine, for highlighting)? */
 function legal(st, ui, sid) {
@@ -33,7 +44,7 @@ function legal(st, ui, sid) {
   if (!s || s.die || s.on) return false;
   if (sel.token && (s.kind === "conc" || s.kind === "intern")) return false;
   if (s.owner !== "any" && s.owner !== sel.seat && !sel.wild) return false;
-  const v = sel.value;
+  const v = sel.value + (sel.token ? 0 : ui.delta || 0);
   if (s.accepts && !s.accepts.includes(v)) return false;
   const order = Number(sid.split("_").pop());
   if (s.kind === "flaps" && [...Array(order).keys()].some((i) => !st.slots[`flaps_${i}`].on)) return false;
@@ -47,307 +58,328 @@ function legal(st, ui, sid) {
   return true;
 }
 
+const GLYPH = { radio: "radio", axis_pilot: "axis", axis_copilot: "axis", engine_pilot: "engine", engine_copilot: "engine" };
+
+/** One space of the Control Panel: a blue / orange / two-tone square, with its die when occupied. */
 function slot(st, ui, sid, cx, cy, o = {}) {
   const s = st.slots[sid];
-  const size = o.size || 84;
-  const half = size / 2;
-  const col = COLORS[s.owner === "any" ? "any" : s.owner];
+  const size = o.size || 88, half = size / 2;
+  const fill = s.owner === "pilot" ? "gPilot" : s.owner === "copilot" ? "gCopilot" : "gAny";
   const hot = legal(st, ui, sid);
-  let body = "";
-  body += `<rect x="${cx - half}" y="${cy - half + 4}" width="${size}" height="${size}" rx="16" fill="#0b1118"/>`;
-  body += `<rect x="${cx - half}" y="${cy - half}" width="${size}" height="${size}" rx="16" fill="${col}" fill-opacity="${s.die ? 0.18 : 0.28}" stroke="${col}" stroke-width="3.5"/>`;
-  body += `<rect x="${cx - half + 7}" y="${cy - half + 7}" width="${size - 14}" height="${size - 14}" rx="10" fill="#0a1017" fill-opacity=".62" stroke="#000" stroke-opacity=".6"/>`;
-  if (s.on && !s.die) {
-    body += `<path d="M${cx - 16},${cy + 2} l11,12 l21,-26" fill="none" stroke="#3fd06a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>`;
-  } else if (!s.die) {
-    if (o.label) body += txt(cx, cy + 10, o.label, size * 0.42, "#fff", "middle", `opacity=".5"`);
-    else if (s.accepts) body += txt(cx, cy + 9, s.accepts.join("·"), size * 0.34, col, "middle", `opacity=".95"`);
-    if (o.glyph) body += icon(o.glyph, cx, cy - 2, 1.1).replace("<g ", `<g opacity=".55" `);
+  let b = `<rect x="${cx - half}" y="${cy - half + 4}" width="${size}" height="${size}" rx="${size * 0.17}" fill="#42566a" opacity=".55"/>`;
+  b += `<rect x="${cx - half}" y="${cy - half}" width="${size}" height="${size}" rx="${size * 0.17}" fill="url(#${fill})" stroke="#10285f" stroke-opacity=".55" stroke-width="2"/>`;
+  b += `<rect x="${cx - half + 5}" y="${cy - half + 5}" width="${size - 10}" height="${size - 10}" rx="${size * 0.12}" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="2"/>`;
+  b += `<rect x="${cx - half + 4}" y="${cy - half + 4}" width="${size - 8}" height="${size * 0.4}" rx="${size * 0.12}" fill="#fff" opacity=".13"/>`;
+  if (!s.die) {
+    const glyph = GLYPH[sid] || (s.kind === "radio" ? "radio" : null);
+    if (s.accepts) b += txt(cx, cy + size * 0.14, s.accepts.join("/"), size * 0.4, "#dbe8ff", "middle", `opacity=".8" stroke="#0b2a7a" stroke-opacity=".35" stroke-width=".8"`);
+    else if (glyph) b += icon(glyph, cx, cy, size / 52, "#fff", 0.72);
+    else if (o.label) b += txt(cx, cy + size * 0.14, o.label, size * 0.36, "#fff", "middle", `opacity=".75"`);
   } else {
     const d = s.die;
-    body += `<g transform="translate(${cx} ${cy})">${dieSVG(d.value, d.seat === "pilot" ? "pilot" : "copilot", size * 0.7)}</g>`;
-    if (d.coffee) body += `<g transform="translate(${cx + half - 8} ${cy - half + 8})">${coffeeIcon(0, 0, 0.55)}</g>`;
+    const tone = d.seat === "pilot" ? "pilot" : "copilot";
+    b += `<g transform="translate(${cx} ${cy})" filter="url(#shadow)">${dieSVG(d.value, tone, size * 0.8)}</g>`;
+    if (d.coffee) b += `<g transform="translate(${cx + half - 6} ${cy - half + 6})">${coffeeIcon(0, 0, 0.5)}</g>`;
   }
-  if (hot) body += `<rect class="pulse" x="${cx - half - 4}" y="${cy - half - 4}" width="${size + 8}" height="${size + 8}" rx="19" fill="none" stroke="#fff" stroke-width="4"/>`;
-  const cls = `slot${hot ? " hot" : ""}${s.die ? " full" : ""}`;
-  return `<g class="${cls}" data-slot="${sid}" ${hot ? `style="cursor:pointer"` : ""}>${body}<rect x="${cx - half - 4}" y="${cy - half - 4}" width="${size + 8}" height="${size + 8}" fill="transparent"/></g>`;
+  if (hot) b += `<rect class="pulse" x="${cx - half - 5}" y="${cy - half - 5}" width="${size + 10}" height="${size + 10}" rx="${size * 0.2}" fill="none" stroke="#fff" stroke-width="5"/>`;
+  return `<g class="slot${hot ? " hot" : ""}${s.die ? " full" : ""}" data-slot="${sid}" ${hot ? `style="cursor:pointer"` : ""}>${b}<rect x="${cx - half - 5}" y="${cy - half - 5}" width="${size + 10}" height="${size + 10}" fill="transparent"/></g>`;
 }
 
-// ------------------------------------------------------------------ approach window
+/** The little sliding switch beside a space: it covers the green light until the space has been used. */
+function toggle(x, y, on, color = "#3fd06a") {
+  const cap = on ? x + 22 : x - 22;
+  return `<rect x="${x - 40}" y="${y - 14}" width="80" height="28" rx="9" fill="#7d8e9d" stroke="#5a6b7a" stroke-width="1.5"/>
+    <circle cx="${x - 22}" cy="${y}" r="8" fill="${on ? color : "#31483c"}" ${on ? `filter="url(#glow)"` : ""}/>
+    <rect x="${cap - 17}" y="${y - 11}" width="34" height="22" rx="6" fill="#eef3f7" stroke="#95a5b3" stroke-width="1.5" style="transition:all .4s"/>
+    ${[0, 1, 2].map((r) => [0, 1].map((c) => `<circle cx="${cap - 5 + c * 10}" cy="${y - 6 + r * 6}" r="1.6" fill="#8b9bab"/>`).join("")).join("")}`;
+}
+
+// ------------------------------------------------------------------ strips
+const LEVEL = COLORS.lvl;
+
+function stripFrame(x, y, w, h) {
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="16" fill="url(#silver)" stroke="#6f767d" stroke-width="2"/>`;
+}
+
+function turnTab(cx, y, allowed) {
+  let g = `<rect x="${cx - 60}" y="${y}" width="120" height="36" rx="9" fill="#f4eedd" stroke="#b9ae92" stroke-width="1.5"/>`;
+  for (let k = -2; k <= 2; k++) {
+    const x = cx + k * 21, yy = y + 18 + Math.abs(k) * 2 + (Math.abs(k) === 2 ? 2 : 0), rot = k * 20;
+    if (allowed.includes(k)) {
+      g += `<g transform="translate(${x} ${yy}) rotate(${rot})"><path d="M-7,-6 L7,-6 L0,8Z" fill="${k === 0 ? "#111" : "#f4eedd"}" stroke="#111" stroke-width="1.8" stroke-linejoin="round"/></g>`;
+    } else {
+      g += `<g transform="translate(${x} ${yy}) rotate(${rot})" stroke="#d3212a" stroke-width="3.2" stroke-linecap="round"><path d="M-5,-5 L5,5 M5,-5 L-5,5"/></g>`;
+    }
+  }
+  return g;
+}
+
+function cubeTab(cx, y, n) {
+  const w = 18 + n * 26;
+  let g = `<rect x="${cx - w / 2}" y="${y}" width="${w}" height="34" rx="7" fill="#f4eedd" stroke="#b9ae92" stroke-width="1.5"/>`;
+  for (let i = 0; i < n; i++) g += cube(cx + (i - (n - 1) / 2) * 26, y + 17, 0.95);
+  return g;
+}
+
+function header(x, y, w, h, color, code, name, mods, stars) {
+  let g = `<path d="M${x},${y + h} V${y + 16} Q${x},${y} ${x + 16},${y} H${x + w - 16} Q${x + w},${y} ${x + w},${y + 16} V${y + h}Z" fill="${color}"/>`;
+  g += `<path d="M${x},${y + h - 3} H${x + w}" stroke="#fff" stroke-opacity=".5" stroke-width="2"/>`;
+  g += txt(x + 16, y + 32, code, 34, "#fff", "start") + txt(x + 16, y + 57, name, 19, "#fff", "start", `opacity=".95"`);
+  let cx = x + w - 22;
+  if (stars) { g += starBadge(stars, cx, y + 26, 0.8); cx -= 34; }
+  [...mods].reverse().forEach((m) => { g += moduleChip(m, cx, y + 26, 0.8, "#fff", color === LEVEL.black ? "#1c1d20" : "#3b4f7a"); cx -= 31; });
+  return g;
+}
+
+const STRIP = { appX: 305, altX: 685, w: 250, hh: 70 };
+
+/** Slide a strip so that `row` sits in the screen; what lies above sticks out, what is behind it is hidden. */
+function strip(inner, x, rows, row, hh) {
+  const y0 = WIN_Y - row * CELL;
+  const top = y0 - hh;
+  return { top, svg: `<g clip-path="url(#winclip)">${stripFrame(x, top, STRIP.w, hh + rows * CELL + 6)}${inner(y0, top)}</g>` };
+}
+
+/** The Approach Track strip. Its cells run from the airport (top) to the clouds (bottom, where you start). */
 function approach(st) {
   const sc = st.scenario, n = sc.length;
-  const t = THEMES[sc.theme] || THEMES.day;
-  let g = `<g clip-path="url(#appclip)"><rect x="24" y="24" width="528" height="240" fill="url(#sky)"/>`;
-  g += cloud(90, 70, 1.3, 0.85) + cloud(300, 52, 1, 0.7) + cloud(470, 84, 1.2, 0.8);
-  if (sc.theme === "storm" || sc.theme === "blizzard") for (let i = 0; i < 26; i++) g += `<path d="M${40 + ((i * 53) % 500)},${40 + ((i * 37) % 120)} l-5,16" stroke="#fff" stroke-opacity=".35" stroke-width="2"/>`;
-  g += `<path d="M24,215 Q120,185 220,205 T400,195 T552,210 V264 H24Z" fill="${t[2]}"/><path d="M24,232 Q150,214 300,228 T552,226 V264 H24Z" fill="#000" opacity=".22"/>`;
-  g += `</g><rect x="24" y="24" width="528" height="240" rx="18" fill="none" stroke="url(#bezel)" stroke-width="9"/>`;
-  const x0 = 78, x1 = 498;
-  const px = (i) => x0 + (i * (x1 - x0)) / (n - 1);
-  const py = (i) => 168 + Math.sin((i / (n - 1)) * Math.PI) * -6;
-  for (let i = 0; i < n - 1; i++) g += `<line x1="${px(i)}" y1="${py(i)}" x2="${px(i + 1)}" y2="${py(i + 1)}" stroke="#fff" stroke-width="5" stroke-dasharray="3 9" stroke-linecap="round" opacity=".85"/>`;
-  for (let i = 0; i < n; i++) {
-    const x = px(i), y = py(i), here = i === st.position, past = i < st.position;
-    g += `<circle cx="${x}" cy="${y}" r="${i === n - 1 ? 27 : 20}" fill="${here ? "#fff7c2" : "#ffffff"}" fill-opacity="${past ? 0.35 : 0.92}" stroke="${here ? "#ffb703" : "#34506b"}" stroke-width="${here ? 5 : 3}"/>`;
-    if (i === n - 1) g += runway(x, y + 1, 0.95);
-    else if (i === 0 && !past && !here) g += cloud(x, y + 2, 0.45, 1);
-    else g += txt(x, y + 7, i + 1, 20, past ? "#6f8296" : "#25384b");
-    if (here) g += `<g transform="translate(${x} ${y - 4}) scale(.62)" filter="url(#shadow)"><path d="${PLANE_PATH}" fill="#1d4f91" stroke="#fff" stroke-width="3"/></g>`;
-    const planes = st.planes[i] || 0;
-    for (let k = 0; k < planes; k++) g += planeToken(x + (k - (planes - 1) / 2) * 22, y - 48 - k * 3, 0.62, 180);
-    const ti = sc.traffic[i] || 0;
-    for (let k = 0; k < ti; k++) g += trafficIcon(x + (k - (ti - 1) / 2) * 24, y + 38, 0.95);
-    const turn = sc.turns[i];
-    if (turn) {
-      for (let a = -2; a <= 2; a++) g += `<circle cx="${x + a * 9}" cy="${y + (ti ? 62 : 40)}" r="3.8" fill="${turn.includes(a) ? "#3fd06a" : "#8a1f19"}" stroke="#0b1118" stroke-width="1"/>`;
+  const x = STRIP.appX, w = STRIP.w, hh = STRIP.hh;
+  return strip((y0, top) => {
+    let g = header(x, top, w, hh, LEVEL[sc.level], sc.code, sc.airport, sc.modules.map((m) => m.key), sc.abilities);
+    for (let r = 0; r < n; r++) {
+      const i = n - 1 - r, y = y0 + r * CELL;
+      const here = i === st.position;
+      g += `<rect x="${x + 12}" y="${y + 5}" width="${w - 24}" height="${CELL - 10}" rx="9" fill="url(#navy)" stroke="#05101f" stroke-width="2"/>`;
+      g += `<rect x="${x + 6}" y="${y + CELL - 2}" width="${w - 12}" height="2" fill="#e8d9c9" opacity=".6"/>`;
+      const mid = x + w / 2, cy = y + CELL / 2;
+      if (i === n - 1) g += airport(mid + 14, cy - 2, 0.6);
+      if (i === 0) g += cloud(mid - 44, cy + 2, 0.5) + cloud(mid + 4, cy - 4, 0.72) + cloud(mid + 56, cy + 4, 0.3);
+      const tr = sc.traffic[i] || 0;
+      if (tr) g += cubeTab(mid, y + CELL - 38, tr);
+      const turn = sc.turns[i];
+      if (turn) g += turnTab(mid, y - 12, turn);
+      const cnt = st.planes[i] || 0;
+      for (let k = 0; k < cnt; k++) {
+        const col = Math.floor(k / 3), row = k % 3, rows = Math.min(3, cnt - col * 3);
+        g += planeToken(x + 33 + col * 26, cy + (row - (rows - 1) / 2) * 18, 0.4, 45, 0.9);
+      }
+      if (here) g += `<rect x="${x + 8}" y="${y + 1}" width="${w - 16}" height="${CELL - 2}" rx="12" fill="none" stroke="#ffd23a" stroke-width="4.5" filter="url(#glow)"/>`;
     }
-  }
-  g += `<rect x="36" y="32" width="150" height="26" rx="8" fill="#0d1722" fill-opacity=".72"/>` + txt(111, 51, "APPROACH TRACK", 16, "#9fd3f5");
-  g += `<rect x="36" y="236" width="${n > 0 ? 292 : 0}" height="22" rx="8" fill="#0d1722" fill-opacity=".72"/>` + txt(182, 252, `${sc.code} · ${sc.airport.toUpperCase()}`, 15, "#fff");
-  return g;
+    return g;
+  }, x, n, n - 1 - st.position, hh);
 }
 
-// ------------------------------------------------------------------ altitude window
+/** The Altitude Track strip: the aeroplane at the top, 1000 ft ... 6000 ft below; 6000 ft is round 1. */
 function altitude(st) {
-  const x0 = 1048, w = 528;
-  let g = `<rect x="${x0}" y="24" width="${w}" height="240" rx="18" fill="#10202f" stroke="url(#bezel)" stroke-width="9"/>`;
-  g += txt(x0 + 118, 52, "ALTITUDE", 16, "#9fd3f5") + txt(x0 + w - 24, 52, `ROUND ${st.round} / 7`, 18, "#fff", "end");
-  const cw = (w - 40) / 7;
-  for (let i = 0; i < 7; i++) {
-    const r = i + 1, x = x0 + 20 + i * cw, cur = r === st.round, past = r < st.round;
-    g += `<rect x="${x + 2}" y="70" width="${cw - 4}" height="86" rx="10" fill="${cur ? "#e8f3ff" : "#1d3045"}" fill-opacity="${past ? 0.35 : 1}" stroke="${cur ? "#ffb703" : "#34506b"}" stroke-width="${cur ? 4 : 2}"/>`;
-    if (r === 7) g += `<g transform="translate(${x + cw / 2} 108) scale(.8)"><path d="${PLANE_PATH}" fill="${cur ? "#1d4f91" : "#c8d4e0"}"/></g>` + txt(x + cw / 2, 146, "FINAL", 14, cur ? "#1d3045" : "#9fd3f5");
-    else g += txt(x + cw / 2, 112, 7 - r, 34, cur ? "#10202f" : "#c8d4e0") + txt(x + cw / 2, 138, "×1000 FT", 12, cur ? "#3b536b" : "#7e93a8");
-    if (st.scenario.rerolls.includes(r)) {
-      const got = r <= st.round;
-      g += `<g opacity="${got ? 0.28 : 1}">${rerollIcon(x + cw / 2, 184, 0.8)}</g>`;
+  const sc = st.scenario, x = STRIP.altX, w = STRIP.w, hh = 46, rows = 7;
+  const dark = sc.level === "red" || sc.level === "black";
+  return strip((y0, top) => {
+    const c1 = dark ? LEVEL.red : LEVEL.green, c2 = dark ? LEVEL.black : LEVEL.yellow;
+    let g = `<rect x="${x + 60}" y="${top + 9}" width="${w - 120}" height="14" rx="7" fill="${c1}"/><rect x="${x + 60}" y="${top + 27}" width="${w - 120}" height="14" rx="7" fill="${c2}"/>`;
+    for (let r = 0; r < rows; r++) {
+      const round = 7 - r, y = y0 + r * CELL; // the top cell is the final round
+      const left = round % 2 === 1; // odd rounds: the Pilot (left, blue) plays first
+      const frame = left ? "#3b9bff" : "#ffb21e";
+      g += `<rect x="${x + 12}" y="${y + 5}" width="${w - 24}" height="${CELL - 10}" rx="10" fill="url(#navy)" stroke="${frame}" stroke-width="3.2"/>`;
+      g += `<path d="M${x + 26},${y + 22} h${w - 52} M${x + 26},${y + CELL - 22} h${w - 52}" stroke="#7aa9e0" stroke-opacity=".18" stroke-width="2"/>`;
+      const ax = left ? x + 27 : x + w - 27;
+      g += `<path d="${left ? `M${ax - 3},${y + 17} l10,-6 v12Z` : `M${ax + 3},${y + 17} l-10,-6 v12Z`}" fill="${frame}"/>`;
+      if (round === 7) g += landingPlane(x + w / 2, y + CELL / 2 + 2, 0.78);
+      else g += `<text x="${x + w / 2 - 8}" y="${y + CELL / 2 + 11}" text-anchor="middle" font-family="Barlow, Arial" font-weight="800" font-size="31" letter-spacing="3" fill="#eef4ff">${(7 - round) * 1000}</text>`;
+      if (sc.rerolls.includes(round)) g += rerollIcon(x + w - 42, y + CELL / 2, 0.62, round > st.round);
+      if (round === st.round) g += `<rect x="${x + 8}" y="${y + 1}" width="${w - 16}" height="${CELL - 2}" rx="13" fill="none" stroke="#ffd23a" stroke-width="4.5" filter="url(#glow)"/>`;
     }
-    if (cur) {
-      const left = st.first === "pilot";
-      g += `<path d="${left ? `M${x + 8},62 l10,-12 l10,12Z` : `M${x + cw - 8},62 l-10,-12 l-10,12Z`}" fill="${left ? COLORS.pilot : COLORS.copilot}"/>`;
-    }
-  }
-  g += txt(x0 + 24, 228, "REROLL", 15, "#9fd3f5", "start");
-  for (let i = 0; i < 3; i++) g += `<g opacity="${i < st.rerolls ? 1 : 0.22}">${rerollIcon(x0 + 110 + i * 46, 222, 0.75)}</g>`;
-  const first = st.first;
-  g += `<rect x="${x0 + 290}" y="206" width="220" height="38" rx="10" fill="#0a1017" stroke="${COLORS[first]}" stroke-width="2.5"/>`;
-  g += txt(x0 + 400, 232, `${first === "pilot" ? "PILOT" : "CO-PILOT"} PLACES FIRST`, 18, first === "pilot" ? COLORS.pilotLight : COLORS.copilotLight);
-  return g;
+    return g;
+  }, x, rows, 7 - st.round, hh);
 }
 
-// ------------------------------------------------------------------ axis dial
-function axis(st, ui) {
-  const cx = 800, cy = 252, R = 190;
-  const pt = (deg, r) => [cx + r * Math.sin((deg * Math.PI) / 180), cy - r * Math.cos((deg * Math.PI) / 180)];
-  const arc = (a0, a1, r) => {
-    const [x0, y0] = pt(a0, r), [x1, y1] = pt(a1, r);
-    return `M${x0},${y0} A${r},${r} 0 0 1 ${x1},${y1}`;
+// ------------------------------------------------------------------ dial, speed gauge, brakes
+function dial(st, ui) {
+  const { x, y, r } = DIAL;
+  let g = `<circle cx="${x}" cy="${y}" r="${r + 30}" fill="#9db0bf" opacity=".5"/>`;
+  g += `<g transform="translate(${x} ${y})"><g class="axisplane" data-deg="${st.axis * STEP}" style="transform:rotate(${(ui.fromAxis ?? st.axis) * STEP}deg);transition:transform .7s cubic-bezier(.3,1.4,.5,1)">
+    <g clip-path="url(#disc)"><rect x="${-r}" y="${-r}" width="${2 * r}" height="${r}" fill="url(#sky)"/><rect x="${-r}" y="0" width="${2 * r}" height="${r}" fill="url(#earth)"/>
+      <path d="M${-r},0 H${r}" stroke="#fff" stroke-width="3"/>
+      <path d="M-42,-42 H42 M-28,-76 H28 M-42,42 H42 M-28,76 H28" stroke="#fff" stroke-opacity=".75" stroke-width="2.4"/>
+      <path d="M0,-40 V-30 M0,40 V30" stroke="#fff" stroke-opacity=".6" stroke-width="2"/></g>
+    <path d="M-136,4 L-18,-3 L18,-3 L136,4 L136,10 L16,5 L-16,5 L-136,10Z" fill="#f4f7fa" stroke="#7b8896" stroke-width="1.4"/>
+    <ellipse cx="0" cy="2" rx="12" ry="16" fill="#f4f7fa" stroke="#7b8896" stroke-width="1.4"/>
+    <path d="M-5,-12 L0,-26 L5,-12Z" fill="#f4f7fa" stroke="#7b8896" stroke-width="1.2"/>
+    <path d="M-7,${-r + 22} L7,${-r + 22} L0,${-r + 6}Z" fill="#fff" stroke="#9aa6b2" stroke-width="1.5" transform="rotate(0)"/>
+    <circle r="8" fill="#e8eef3" stroke="#7b8896" stroke-width="1.5"/></g></g>`;
+  // fixed bezel with the marks
+  const ring = (a0, a1, r0, r1) => {
+    const [x0, y0] = polar(x, y, r1, a0), [x1, y1] = polar(x, y, r1, a1), [x2, y2] = polar(x, y, r0, a1), [x3, y3] = polar(x, y, r0, a0);
+    return `M${x0},${y0} A${r1},${r1} 0 ${Math.abs(a1 - a0) > 180 ? 1 : 0} 1 ${x1},${y1} L${x2},${y2} A${r0},${r0} 0 ${Math.abs(a1 - a0) > 180 ? 1 : 0} 0 ${x3},${y3}Z`;
   };
-  let g = `<path d="M${cx - R - 12},${cy} A${R + 12},${R + 12} 0 0 1 ${cx + R + 12},${cy}Z" fill="url(#bezel)"/>`;
-  g += `<path d="M${cx - R},${cy} A${R},${R} 0 0 1 ${cx + R},${cy}Z" fill="#14212e"/>`;
-  g += `<path d="M${cx - R + 14},${cy} A${R - 14},${R - 14} 0 0 1 ${cx + R - 14},${cy}Z" fill="url(#dialface)"/>`;
-  // spin zones
-  for (const sign of [-1, 1]) {
-    const a = sign * (SPIN * STEP - STEP / 2), b = sign * 90;
-    const [x0, y0] = pt(a, R - 14), [x1, y1] = pt(b, R - 14), [x2, y2] = pt(a, 60), [x3, y3] = pt(b, 60);
-    g += `<path d="M${x2},${y2} L${x0},${y0} A${R - 14},${R - 14} 0 0 ${sign > 0 ? 1 : 0} ${x1},${y1} L${x3},${y3}Z" fill="#c9302a" fill-opacity=".72"/>`;
-    const [xx, yy] = pt(sign * SPIN * STEP, 150);
-    g += `<g transform="translate(${xx} ${yy})" stroke="#fff" stroke-width="7" stroke-linecap="round"><path d="M-10,-10 L10,10 M10,-10 L-10,10"/></g>`;
+  g += `<path d="${ring(0, 360, r, r + 12)}" fill="#1a1d22"/>`;
+  g += `<path d="${ring(-96, 96, r, r + 30)}" fill="#202429" stroke="#0a0c0f" stroke-width="2"/>`;
+  for (const k of [-2, -1, 0, 1, 2]) {
+    const [tx, ty] = polar(x, y, r + 8, k * STEP);
+    g += `<g transform="translate(${tx} ${ty}) rotate(${k * STEP + 180})"><path d="M-7,-6 L7,-6 L0,8Z" transform="rotate(180)" fill="${k === 0 ? "#0a0a0a" : "#f1f3f5"}" stroke="${k === 0 ? "#f1f3f5" : "#0a0a0a"}" stroke-width="1.6" stroke-linejoin="round"/></g>`;
   }
-  for (let k = -2; k <= 2; k++) {
-    const [x0, y0] = pt(k * STEP, R - 18), [x1, y1] = pt(k * STEP, R - 40);
-    g += `<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" stroke="#fff" stroke-width="${k === 0 ? 6 : 4}" stroke-linecap="round"/>`;
+  for (const k of [-3, 3]) {
+    const [tx, ty] = polar(x, y, r + 19, k * STEP);
+    g += `<g transform="translate(${tx} ${ty})" stroke="#e8352d" stroke-width="5" stroke-linecap="round"><path d="M-7,-7 L7,7 M7,-7 L-7,7"/></g>`;
   }
-  g += `<path d="M${cx - 12},${cy - R - 2} L${cx + 12},${cy - R - 2} L${cx},${cy - R + 20}Z" fill="#0a1017" stroke="#fff" stroke-width="2"/>`;
-  g += `<g transform="translate(${cx} ${cy - 78})" filter="url(#shadow)"><g class="axisplane" data-deg="${st.axis * STEP}" style="transform:rotate(${(ui.fromAxis ?? st.axis) * STEP}deg);transition:transform .6s cubic-bezier(.3,1.5,.5,1)">${planeFront()}</g></g>`;
-  const [ax, ay] = pt(st.axis * STEP, R - 4);
-  g += `<g transform="translate(${ax} ${ay}) rotate(${st.axis * STEP + 180})"><path d="M-11,-2 L11,-2 L0,24Z" fill="#ffd23f" stroke="#7a5a00" stroke-width="2.5"/></g>`;
-  g += `<rect x="${cx - 70}" y="${cy - 6}" width="140" height="30" rx="8" fill="#0a1017"/>` + txt(cx, cy + 15, `AXIS ${st.axis > 0 ? "+" : ""}${st.axis}`, 20, st.axis === 0 ? "#3fd06a" : Math.abs(st.axis) >= 2 ? "#ff7b6e" : "#ffd23f");
   return g;
 }
 
-// ------------------------------------------------------------------ speed gauge
+const gaugeAngle = (n) => 250 - (n - 2) * 14;
+
 function gauge(st) {
-  const x0 = 560, w = 480 / 11, y = 452, h = 44;
-  let g = `<rect x="${x0 - 14}" y="${y - 34}" width="508" height="${h + 82}" rx="14" fill="#101a24" stroke="#3b4856" stroke-width="2"/>`;
-  g += txt(x0 + 4, y - 14, "SPEED", 15, "#9fd3f5", "start") + txt(x0 + 480, y - 14, st.final ? "FINAL: STAY BELOW THE BRAKES" : "AERODYNAMICS", 15, "#9fd3f5", "end");
-  const cx = (n) => x0 + (n - 2) * w;
+  const { x, y } = DIAL, R = 200;
+  const arc = (a0, a1, rr) => {
+    const [x0, y0] = polar(x, y, rr, a0), [x1, y1] = polar(x, y, rr, a1);
+    return `M${x0},${y0} A${rr},${rr} 0 0 0 ${x1},${y1}`;
+  };
+  let g = `<path d="${arc(260, 100, R)}" fill="none" stroke="#1c2230" stroke-width="46" stroke-linecap="round"/><path d="${arc(260, 100, R)}" fill="none" stroke="#2b3447" stroke-width="40" stroke-linecap="round"/>`;
   for (let n = 2; n <= 12; n++) {
-    const zone = st.final ? "#27313c" : n <= st.blue ? "#27313c" : n <= st.orange ? "#2f4d38" : "#5a3a24";
+    const a = gaugeAngle(n), [px, py] = polar(x, y, R, a);
     const on = st.speed === n;
-    g += `<rect x="${cx(n)}" y="${y}" width="${w - 2}" height="${h}" rx="6" fill="${on ? "#ffffff" : zone}" stroke="${on ? "#ffd23f" : "#445566"}" stroke-width="${on ? 4 : 1.5}"/>`;
-    g += txt(cx(n) + w / 2 - 1, y + 30, n, 25, on ? "#10202f" : "#e8eef5");
+    g += `<g transform="translate(${px} ${py}) rotate(${a - 180})">${on ? `<rect x="-17" y="-19" width="34" height="36" rx="8" fill="#ffd23a" opacity=".95"/>` : ""}<text y="9" text-anchor="middle" font-family="Barlow, Arial" font-weight="800" font-size="24" fill="${on ? "#1a1a1a" : "#f4f7fa"}">${n}</text></g>`;
   }
-  if (!st.final) {
-    g += txt(cx(2) + (st.blue - 1) * w / 2, y + h + 22, "HOLD", 14, "#9fb0c0");
-    g += txt(cx(st.blue + 1) + ((st.orange - st.blue) * w) / 2 - 1, y + h + 22, "ADVANCE 1", 14, "#7ad39a");
-    g += txt(cx(st.orange + 1) + ((12 - st.orange) * w) / 2 - 1, y + h + 22, "+2", 14, "#ffb067");
-  }
-  const mark = (xm, color, up) => `<g><line x1="${xm}" y1="${y - 6}" x2="${xm}" y2="${y + h + 6}" stroke="${color}" stroke-width="5"/>
-    <path d="${up ? `M${xm - 11},${y + h + 18} L${xm + 11},${y + h + 18} L${xm},${y + h + 3}Z` : `M${xm - 11},${y - 20} L${xm + 11},${y - 20} L${xm},${y - 3}Z`}" fill="${color}" stroke="#000" stroke-opacity=".5"/></g>`;
-  if (!st.final) g += mark(x0 + (st.blue - 1) * w - 1, COLORS.pilot, false) + mark(x0 + (st.orange - 1) * w - 1, COLORS.copilot, false);
-  const bx = st.brakeLimit ? x0 + (st.brakeLimit - 2) * w - 1 : x0 - 7;
-  g += mark(bx, COLORS.red, true);
+  const marker = (after, color, dark) => {
+    const a = (gaugeAngle(after) + gaugeAngle(after + 1)) / 2, [px, py] = polar(x, y, R + 30, a);
+    return `<g transform="translate(${px} ${py}) rotate(${a - 180})" filter="url(#shadow)"><path d="M-9,-14 H9 L12,6 L0,24 L-12,6Z" fill="${color}" stroke="${dark}" stroke-width="2.2" stroke-linejoin="round"/><path d="M0,-8 V14" stroke="#fff" stroke-opacity=".6" stroke-width="2"/></g>`;
+  };
+  g += marker(st.blue, "#2d6be0", "#0b2a77") + marker(st.orange, "#f58a1f", "#8f3d05");
   return g;
 }
 
-// ------------------------------------------------------------------ side panels
-function zone(x, y, w, h, color, label) {
-  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="22" fill="${color}" fill-opacity=".1" stroke="${color}" stroke-opacity=".5" stroke-width="3"/>` +
-    txt(x + 26, y + 34, label, 20, color, "start");
+function brakeArc(st, ice) {
+  const xs = (i) => CX + (i - 4) * (ice ? 0 : 70);
+  if (ice) return "";
+  let g = "";
+  for (let i = 2; i <= 6; i++) {
+    const px = xs(i), py = 1274 - (i - 4) * (i - 4) * 6;
+    g += `<rect x="${px - 22}" y="${py - 20}" width="44" height="40" rx="8" fill="#242c3c"/>` + txt(px, py + 9, i, 26, "#f4f7fa", "middle", `font-family="Barlow, Arial" font-weight="800"`);
+  }
+  const after = st.brakeLimit ? st.brakeLimit - 1 : 1;
+  const bx = after <= 1 ? xs(2) - 38 : (xs(after) + xs(after + 1)) / 2;
+  const by = 1274 - ((after <= 1 ? 2 : after + 0.5) - 4) ** 2 * 6;
+  g += `<g transform="translate(${bx} ${by - 30})" filter="url(#shadow)"><path d="M-10,-4 H10 V10 L0,24 L-10,10Z" fill="#d9322a" stroke="#6b0f0a" stroke-width="2.2" stroke-linejoin="round"/></g>`;
+  return g;
 }
 
-function pilotZone(st, ui) {
-  let g = zone(24, 290, 528, 670, COLORS.pilot, "PILOT");
-  g += txt(130, 322, "RADIO", 15, "#9fd3f5") + icon("radio", 130, 342, 0.9);
-  g += slot(st, ui, "radio_pilot", 130, 408, { glyph: "radio" });
-  g += txt(406, 330, "Land the plane level, with", 17, "#6f87a0", "middle") + txt(406, 352, "gear down, flaps out,", 17, "#6f87a0", "middle") + txt(406, 374, "and the sky clear of traffic.", 17, "#6f87a0", "middle");
-  g += `<g transform="translate(0 30)">` + txt(46, 478, "LANDING GEAR", 17, "#9fd3f5", "start");
+// ------------------------------------------------------------------ the panel
+function panel(st, ui) {
+  const ice = st.scenario.modules.some((m) => m.key === "ice");
+  let g = `<rect x="${PANEL.x}" y="${PANEL.y}" width="${PANEL.w}" height="${PANEL.h}" rx="34" fill="url(#panel)" stroke="#8da0b0" stroke-width="5" filter="url(#shadow)"/>`;
+  g += `<rect x="${PANEL.x + 12}" y="${PANEL.y + 12}" width="${PANEL.w - 24}" height="${PANEL.h - 24}" rx="26" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="2"/>`;
+  g += [[PANEL.x + 22, PANEL.y + 22], [PANEL.x + PANEL.w - 22, PANEL.y + 22], [PANEL.x + 22, PANEL.y + PANEL.h - 22], [PANEL.x + PANEL.w - 22, PANEL.y + PANEL.h - 22]].map(([a, b]) => screw(a, b)).join("");
+  const lbl = (x, y, s, anchor = "middle") => txt(x, y, s, 15, "#5f7a95", anchor);
+  // dial with axis spaces
+  g += dial(st, ui) + gauge(st);
+  g += slot(st, ui, "axis_pilot", 392, 800) + slot(st, ui, "axis_copilot", 848, 800) + lbl(392, 868, "AXIS") + lbl(848, 868, "AXIS");
+  // engines
+  g += slot(st, ui, "engine_pilot", 470, 1162, { size: 94 }) + slot(st, ui, "engine_copilot", 770, 1162, { size: 94 });
+  g += lbl(CX, 1136, "ENGINES");
+  g += `<rect x="${CX - 42}" y="1146" width="84" height="38" rx="9" fill="#1f2735"/>` + txt(CX, 1174, st.speed === null ? "–" : st.speed, 26, st.speed === null ? "#6b7a90" : "#ffd23a", "middle", `font-family="Barlow, Arial" font-weight="800"`);
+  // left column: reroll, radio, landing gear
+  g += `<rect x="182" y="620" width="116" height="74" rx="14" fill="url(#navy)" stroke="#6e8196" stroke-width="3"/>`;
+  for (let i = 0; i < 3; i++) g += rerollIcon(212 + i * 38, 657, 0.56, i < st.rerolls);
+  g += lbl(240, 712, "REROLL");
+  g += slot(st, ui, "radio_pilot", 240, 790) + lbl(240, 862, "RADIO");
   for (let i = 0; i < 3; i++) {
-    const x = 100 + i * 130;
-    g += lamp(x, 508, st.gear > i ? true : false, 9) + slot(st, ui, `gear_${i}`, x, 572, { glyph: null });
+    const y = 970 + i * 142;
+    g += slot(st, ui, `gear_${i}`, 240, y) + toggle(240, y + 66, st.slots[`gear_${i}`].on);
   }
-  g += `</g><g transform="translate(0 70)">`;
-  if (st.scenario.modules.some((m) => m.key === "ice")) g += iceBoard(st, ui);
+  g += lbl(240, 912, "LANDING GEAR");
+  // right column: radio and flaps
+  g += slot(st, ui, "radio_copilot_1", 1000, 668) + slot(st, ui, "radio_copilot_2", 1000, 772) + lbl(1000, 846, "RADIO");
+  for (let i = 0; i < 4; i++) {
+    const y = 970 + i * 140;
+    g += slot(st, ui, `flaps_${i}`, 1000, y) + toggle(1000, y + 64, st.slots[`flaps_${i}`].on);
+  }
+  g += lbl(1000, 912, "FLAPS");
+  // brakes
+  g += lbl(CX, ice ? 1229 : 1236, ice ? "ICE BRAKES" : "BRAKES");
+  if (ice) g += iceBoard(st, ui);
   else {
-    g += txt(46, 652, "BRAKES", 17, "#9fd3f5", "start") + txt(150, 652, "in order · only matter on the final round", 13, "#6f87a0", "start");
+    g += brakeArc(st, false);
     for (let i = 0; i < 3; i++) {
-      const x = 100 + i * 130;
-      g += lamp(x, 682, st.brakes > i, 9, COLORS.red) + slot(st, ui, `brake_${i}`, x, 746);
+      const x = CX + (i - 1) * 130;
+      g += slot(st, ui, `brake_${i}`, x, 1352, { size: 82 }) + toggle(x, 1412, st.slots[`brake_${i}`].on, "#e8352d");
     }
-    g += txt(288, 840, "IN THE FINAL ROUND THE ENGINES MUST STAY BELOW THE RED MARKER", 14, "#6f87a0", "middle");
   }
-  g += `</g>`;
+  // concentration + coffee
+  g += lbl(330, 1456, "COFFEE") + lbl(675, 1456, "CONCENTRATION");
+  for (let i = 0; i < 3; i++) {
+    const x = 268 + i * 66;
+    g += `<circle cx="${x}" cy="1496" r="26" fill="#27384c" stroke="#8da0b0" stroke-width="3"/>` + (i < st.coffee ? coffeeIcon(x, 1492, 0.95) : icon("coffee", x, 1496, 1, "#6d8197", 0.7));
+  }
+  for (let i = 0; i < 3; i++) g += slot(st, ui, `conc_${i}`, 560 + i * 115, 1496, { size: 82 });
   return g;
 }
 
 function iceBoard(st, ui) {
-  let g = txt(46, 652, "ICE BRAKES", 17, "#9fd3f5", "start") + txt(176, 652, "two equal dice, same round", 13, "#6f87a0", "start");
-  g += `<rect x="52" y="728" width="430" height="14" rx="7" fill="#26313c"/>`;
-  for (let i = 0; i < 4; i++) {
-    const x = 100 + i * 108;
-    g += slot(st, ui, `ice_pilot_${i}`, x, 700, { size: 72 }) + slot(st, ui, `ice_copilot_${i}`, x, 786, { size: 72 });
-    g += lamp(x, 743, st.icePairs > i, 8, COLORS.red);
-  }
-  return g;
-}
-
-function copilotZone(st, ui) {
-  let g = zone(1048, 290, 528, 670, COLORS.copilot, "CO-PILOT");
-  g += txt(1200, 322, "RADIO", 15, "#ffd08a") + icon("radio", 1200, 342, 0.9);
-  g += slot(st, ui, "radio_copilot_1", 1160, 408, { glyph: "radio" }) + slot(st, ui, "radio_copilot_2", 1260, 408, { glyph: "radio" });
-  g += txt(1480, 340, "Radio dice clear", 17, "#a58559") + txt(1480, 362, "an airplane that many", 17, "#a58559") + txt(1480, 384, "spaces ahead (1 = here).", 17, "#a58559");
-  g += `<g transform="translate(0 30)">` + txt(1072, 478, "FLAPS", 17, "#ffd08a", "start") + txt(1150, 478, "in order, top to bottom of the board", 13, "#a58559", "start");
-  for (let i = 0; i < 4; i++) {
-    const x = 1110 + i * 118;
-    g += lamp(x, 508, st.flaps > i, 9, COLORS.copilot) + slot(st, ui, `flaps_${i}`, x, 572);
-  }
-  g += `</g><g transform="translate(0 50)">` + txt(1072, 662, "WINNING A LANDING", 17, "#ffd08a", "start");
-  const checks = [
-    [st.planes.every((p) => !p), "No airplanes left on the approach"],
-    [st.gear >= 3 && st.flaps >= 4, "Landing gear down, flaps fully out"],
-    [st.axis === 0, "Plane perfectly level"],
-    [st.final ? (st.speed !== null && st.speed < st.brakeLimit) : false, "Engines below the Brakes (final round)"],
-  ];
-  checks.forEach(([ok, label], i) => {
-    g += `<circle cx="1086" cy="${698 + i * 38}" r="11" fill="${ok ? COLORS.green : "#26313c"}" stroke="#0a1017" stroke-width="2"/>` + txt(1112, 704 + i * 38, label, 17, ok ? "#e8f3e8" : "#a58559", "start");
+  const xs = [CX - 150, CX - 50, CX + 50, CX + 150];
+  let g = `<rect x="${CX - 218}" y="1240" width="436" height="198" rx="14" fill="#c4d0d9" stroke="#7d8e9c" stroke-width="3"/>`;
+  g += `<rect x="${CX - 205}" y="1329" width="410" height="30" rx="6" fill="#171b22"/>`;
+  [2, 3, 4, 5].forEach((v, i) => { g += txt(xs[i], 1351, v, 22, "#f4f7fa", "middle", `font-family="Barlow, Arial" font-weight="800"`); });
+  for (let i = 0; i < 3; i++) g += `<path d="M${(xs[i] + xs[i + 1]) / 2 - 7},1344 l14,0 M${(xs[i] + xs[i + 1]) / 2},1337 v14" stroke="#9fc4ee" stroke-width="2" opacity=".8"/>`;
+  const after = st.icePairs + 1;
+  const mx = after <= 1 ? xs[0] - 44 : after >= 5 ? xs[3] + 44 : (xs[after - 2] + xs[after - 1]) / 2;
+  g += `<path d="M${mx - 9},1334 h18 v10 l-9,12 l-9,-12Z" transform="translate(0 -4)" fill="#d9322a" stroke="#6b0f0a" stroke-width="2"/>`;
+  xs.forEach((x, i) => {
+    g += slot(st, ui, `ice_pilot_${i}`, x, 1282, { size: 64 }) + slot(st, ui, `ice_copilot_${i}`, x, 1400, { size: 64 });
   });
-  return g + `</g>`;
-}
-
-// ------------------------------------------------------------------ centre
-function centre(st, ui) {
-  let g = "";
-  g += slot(st, ui, "axis_pilot", 690, 350, { size: 78 }) + slot(st, ui, "axis_copilot", 910, 350, { size: 78 });
-  g += txt(800, 346, "AXIS", 24, "#fff") + txt(800, 370, "higher die tips it", 14, "#8aa0b5");
-  g += gauge(st);
-  g += `<g transform="translate(0 64)">`;
-  g += slot(st, ui, "engine_pilot", 690, 530, { size: 92 }) + slot(st, ui, "engine_copilot", 910, 530, { size: 92 });
-  g += txt(800, 512, "ENGINES", 22, "#fff");
-  const tot = st.speed;
-  g += `<rect x="758" y="526" width="84" height="40" rx="10" fill="#0a1017" stroke="#3b4856" stroke-width="2"/>` + txt(800, 556, tot === null ? "SUM" : tot, 24, tot === null ? "#5c6b7a" : "#ffd23f");
-  // concentration + coffee
-  g += txt(560, 622, "CONCENTRATION", 15, "#9fd3f5", "start") + icon("coffee", 700, 617, 0.55);
-  for (let i = 0; i < 3; i++) g += slot(st, ui, `conc_${i}`, 604 + i * 92, 674, { size: 74 });
-  g += txt(880, 622, "COFFEE", 15, "#9fd3f5", "start");
-  for (let i = 0; i < 3; i++) g += `<circle cx="${902 + i * 58}" cy="674" r="25" fill="#0a1017" stroke="#3b4856" stroke-width="3"/>` + (i < st.coffee ? coffeeIcon(902 + i * 58, 676, 0.95) : "");
-  g += `</g><g transform="translate(0 68)">${modules(st, ui)}</g>`;
   return g;
 }
 
-function modules(st, ui) {
-  const keys = st.scenario.modules.map((m) => m.key);
-  const list = [];
-  if (keys.includes("kerosene") || keys.includes("leak")) list.push("fuel");
-  if (keys.includes("intern")) list.push("intern");
-  if (keys.includes("wind")) list.push("wind");
-  let g = "";
-  list.forEach((m, i) => {
-    const x = i === 0 ? 560 : 800 + 6, w = 232;
-    g += `<rect x="${x}" y="732" width="${w}" height="148" rx="16" fill="#101a24" stroke="#3b4856" stroke-width="2"/>`;
-    if (m === "fuel") g += fuel(st, ui, x);
-    if (m === "intern") g += intern(st, ui, x);
-    if (m === "wind") g += wind(st, x);
-  });
-  if (list.length < 2) {
-    const x = list.length ? 806 : 560, w = list.length ? 232 : 480;
-    g += `<rect x="${x}" y="732" width="${w}" height="148" rx="16" fill="#101a24" stroke="#3b4856" stroke-width="2"/>` + planeBadge(st, x + w / 2, list.length ? 28 : 44);
-  }
-  return g;
-}
-
-function planeBadge(st, x = 800, size = 44) {
-  return `<g opacity=".9"><text x="${x}" y="800" text-anchor="middle" font-family="Barlow Condensed" font-weight="800" font-size="${size}" letter-spacing="${size / 4.4}" fill="#2b3a4a">SKY TEAM</text>` +
-    txt(x, 836, size > 30 ? "TWO PILOTS · ONE LANDING · NO TALKING" : "NO TALKING", 15, "#43556a") + `</g>`;
-}
-
-function fuel(st, ui, x) {
+// ------------------------------------------------------------------ modules
+function kerosene(st, ui) {
   const sc = st.scenario, leak = sc.modules.some((m) => m.key === "leak");
-  const pct = Math.max(0, Math.min(1, st.kerosene / sc.kerosene));
-  let g = txt(x + 18, 760, leak ? "KEROSENE LEAK" : "KEROSENE", 15, "#9fd3f5", "start");
-  g += `<rect x="${x + 18}" y="772" width="196" height="20" rx="10" fill="#0a1017" stroke="#3b4856"/>`;
-  g += `<rect x="${x + 20}" y="774" width="${Math.max(0, 192 * pct)}" height="16" rx="8" fill="${pct > 0.5 ? "#3fd06a" : pct > 0.25 ? "#ffd23f" : "#ff5a4a"}"/>`;
-  g += txt(x + 214, 760, Math.max(0, st.kerosene), 22, "#fff", "end");
-  if (leak) g += txt(x + 116, 836, "−(difference + 1) per Engines", 14, "#8aa0b5") + txt(x + 116, 856, "check", 14, "#8aa0b5");
-  else {
-    g += slot(st, ui, "kerosene", x + 66, 838, { size: 70, glyph: null, label: "−" });
-    g += txt(x + 170, 826, "NO DIE: −6", 15, "#ff9b8f") + txt(x + 170, 846, "AT ROUND END", 15, "#ff9b8f");
-  }
+  const x = 62, top = 706, step = 36.6;
+  const yv = (k) => top + (20 - k) * step;
+  let g = `<rect x="10" y="590" width="150" height="960" rx="22" fill="url(#panel)" stroke="#8da0b0" stroke-width="5" filter="url(#shadow)"/>`;
+  g += `<rect x="62" y="${top - 14}" width="52" height="${(20) * step + 34}" rx="10" fill="url(#fuel)" stroke="#6a4a10" stroke-width="3"/>`;
+  for (let k = 20; k >= 1; k--) g += txt(50, yv(k) + 5, k, 14, "#4d6178", "end") + `<path d="M62,${yv(k)} h12" stroke="#fff" stroke-opacity=".7" stroke-width="2"/>`;
+  g += `<g transform="translate(88 ${yv(0) + 4})" stroke="#2a0a08" stroke-width="5" stroke-linecap="round"><path d="M-9,-9 L9,9 M9,-9 L-9,9"/></g>`;
+  const ky = yv(Math.max(0, Math.min(20, st.kerosene)));
+  g += `<g transform="translate(88 ${ky})" filter="url(#shadow)"><path d="M-26,-12 H30 V12 H-26 L-38,0Z" fill="#eef2f5" stroke="#7b8896" stroke-width="2.5"/><text x="-2" y="7" text-anchor="middle" font-family="Barlow, Arial" font-weight="800" font-size="18" fill="#1d2b3d">${Math.max(0, st.kerosene)}</text></g>`;
+  g += txt(85, 612, leak ? "LEAK" : "KEROSENE", 14, "#5f7a95");
+  if (leak) g += `<rect x="50" y="622" width="70" height="70" rx="12" fill="#1b2230" stroke="#e8352d" stroke-width="3"/><g transform="translate(85 657)" stroke="#e8352d" stroke-width="9" stroke-linecap="round"><path d="M-16,-16 L16,16 M16,-16 L-16,16"/></g>`;
+  else g += slot(st, ui, "kerosene", 85, 657, { size: 72 }) + `<rect x="108" y="618" width="42" height="22" rx="6" fill="#e8352d"/>` + txt(129, 635, "−6", 16, "#fff");
   return g;
 }
 
-function intern(st, ui, x) {
-  let g = txt(x + 18, 760, "INTERN", 15, "#9fd3f5", "start");
-  g += slot(st, ui, "intern_pilot", x + 40, 828, { size: 64, label: "?" });
-  g += slot(st, ui, "intern_copilot", x + 192, 828, { size: 64, label: "?" });
-  st.interns.forEach((v, i) => {
-    const tx = x + 116 + (i - (st.interns.length - 1) / 2) * 42;
-    g += `<g transform="translate(${tx} 828)"><rect x="-17" y="-17" width="34" height="34" rx="7" fill="#f3efe4" stroke="#8a7a55" stroke-width="2"/>` + txt(0, 8, v, 24, "#25384b") + `</g>`;
-  });
-  if (!st.interns.length) g += txt(x + 116, 834, "TRAINED ✓", 16, "#3fd06a");
-  return g;
-}
-
-function wind(st, x) {
-  const cx = x + 78, cy = 826, r = 52;
-  let g = txt(x + 18, 760, "WIND", 15, "#9fd3f5", "start");
-  const n = st.windRing.length;
+function windRing(st) {
+  const cx = 1158, cy = 760, R = 62, n = st.windRing.length;
+  let g = `<rect x="1074" y="610" width="170" height="300" rx="22" fill="url(#panel)" stroke="#8da0b0" stroke-width="5" filter="url(#shadow)"/>`;
+  g += `<circle cx="${cx}" cy="${cy}" r="${R + 17}" fill="#7e97a6"/><circle cx="${cx}" cy="${cy}" r="${R - 19}" fill="#2a58b8"/>`;
   for (let i = 0; i < n; i++) {
-    const a = (i / n) * 2 * Math.PI, px = cx + r * Math.sin(a), py = cy - r * Math.cos(a);
-    const on = i === st.wind;
-    g += `<circle cx="${px}" cy="${py}" r="13" fill="${on ? "#ffd23f" : "#1d3045"}" stroke="#3b4856" stroke-width="2"/>` + txt(px, py + 6, (st.windRing[i] > 0 ? "+" : "") + st.windRing[i], 15, on ? "#10202f" : "#9fb0c0");
+    const a = (360 / n) * i, [px, py] = polar(cx, cy, R, a), on = i === st.wind, v = st.windRing[i];
+    g += `<g transform="translate(${px} ${py}) rotate(${a})">${on ? `<rect x="-10" y="-11" width="20" height="22" rx="5" fill="#ffd23a"/>` : ""}<text y="5" text-anchor="middle" font-family="Barlow, Arial" font-weight="800" font-size="12" fill="${on ? "#1a1a1a" : "#f4f7fa"}">${v > 0 ? "+" : ""}${v}</text></g>`;
   }
-  const a = (st.wind / n) * 2 * Math.PI;
-  g += `<g transform="translate(${cx} ${cy}) rotate(${(a * 180) / Math.PI})"><path d="${PLANE_PATH}" transform="scale(.62)" fill="#2f80e0" stroke="#fff" stroke-width="2.5"/></g>`;
-  g += txt(x + 178, 806, "ENGINES", 14, "#8aa0b5") + txt(x + 178, 840, (st.windSpeed > 0 ? "+" : "") + st.windSpeed, 34, st.windSpeed > 0 ? "#ffb067" : st.windSpeed < 0 ? "#7ad39a" : "#fff");
+  g += `<g transform="translate(${cx} ${cy}) rotate(${(360 / n) * st.wind}) scale(.8)" filter="url(#shadow)"><path d="${PLANE_PATH}" fill="#f4f7fa" stroke="#8a97a6" stroke-width="1.5"/></g>`;
+  g += txt(cx, 640, "WIND", 15, "#5f7a95") + txt(cx, 892, `${st.windSpeed > 0 ? "+" : ""}${st.windSpeed} ENGINES`, 17, "#1d3a6a");
+  return g;
+}
+
+function internBoard(st, ui) {
+  const y = 1612, left = st.internLeft || 0, rem = st.interns.length;
+  let g = `<rect x="180" y="1568" width="880" height="86" rx="18" fill="url(#panel)" stroke="#8da0b0" stroke-width="5" filter="url(#shadow)"/>`;
+  g += slot(st, ui, "intern_pilot", 244, y, { size: 66 }) + slot(st, ui, "intern_copilot", 996, y, { size: 66 });
+  for (let i = 0; i < 6; i++) {
+    const x = 354 + i * 102, v = st.interns[i - left];
+    const has = i >= left && i < left + rem;
+    if (has) {
+      g += `<g transform="translate(${x} ${y})"><path d="M-12,-34 L0,-18 L12,-34Z" fill="#2f9a48"/><rect x="-26" y="-24" width="52" height="52" rx="9" fill="#f4eedd" stroke="#2f9a48" stroke-width="4"/><text y="15" text-anchor="middle" font-family="Barlow, Arial" font-weight="800" font-size="36" fill="#1b3d73">${v}</text></g>`;
+    } else g += `<g transform="translate(${x} ${y})"><rect x="-26" y="-24" width="52" height="52" rx="9" fill="#1d7a3a"/><path d="M-12,2 l8,9 l16,-19" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></g>`;
+  }
   return g;
 }
 
 export function boardSVG(st, ui) {
-  const bolts = [[14, 14], [W - 14, 14], [14, H - 14], [W - 14, H - 14], [W / 2, 276], [540, 290], [1060, 290]].map(([x, y]) => screw(x, y)).join("");
-  return `<svg viewBox="0 0 ${W} ${H}" class="board" xmlns="http://www.w3.org/2000/svg">${defs(st.scenario.theme)}
-    <rect x="2" y="2" width="${W - 4}" height="${H - 4}" rx="30" fill="url(#panel)" stroke="#0a0f14" stroke-width="4"/>
-    ${bolts}${approach(st)}${altitude(st)}${axis(st, ui)}${pilotZone(st, ui)}${copilotZone(st, ui)}${centre(st, ui)}</svg>`;
+  const keys = st.scenario.modules.map((m) => m.key);
+  const fuel = keys.includes("kerosene") || keys.includes("leak");
+  const wind = keys.includes("wind"), intern = keys.includes("intern");
+  const x0 = fuel ? 0 : 168, x1 = wind ? 1256 : 1078, y1 = intern ? 1666 : 1564;
+  const top = Math.min(WIN_Y - (st.scenario.length - 1) * CELL - STRIP.hh, WIN_Y - 6 * CELL - 46) - 16;
+  return `<svg viewBox="${x0} ${top} ${x1 - x0} ${y1 - top}" class="board" xmlns="http://www.w3.org/2000/svg">${defs()}
+    ${panel(st, ui)}${altitude(st).svg}${approach(st).svg}${fuel ? kerosene(st, ui) : ""}${wind ? windRing(st) : ""}${intern ? internBoard(st, ui) : ""}</svg>`;
 }
 
 export { dieSVG, legal };

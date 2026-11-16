@@ -13,9 +13,11 @@ plane on the runway. Share a link with a friend, or play both seats on one devic
 - **All 21 scenarios** of the flight log, in four difficulty tiers (Green, Yellow, Red, Black) with the modules
   Kerosene, Intern, Wind, Real-Time, Kerosene Leak and Ice Brakes, Traffic die, turn corridors, and the six
   Special Abilities (Working Together, Synchronisation, Mastery, Control, Anticipation, Adaptation).
-- **A cockpit that looks the part**: the control panel, axis dial, speed gauge, approach and altitude windows, dice
-  and tokens are all drawn as SVG.
-- **Pick the scenario in the lobby.** Landed scenarios are stamped on their card.
+- **A cockpit that looks like the box**: the silver-blue control panel with blue and orange spaces and sliding
+  switches, the attitude dial and speed gauge, the navy approach and altitude strips with cream tabs, numbered
+  dice and white airplane tokens, all drawn as SVG.
+- **Pick the scenario in the lobby** (laid out like the Flight Log) and choose its Special Ability cards. Landed
+  scenarios are ticked on their card.
 - **Local progress**: finished scenarios are stored in `progress.json` next to where you start the server. The file
   is `.gitignore`d, so it never ends up in the repo.
 - **Two ways to play**: two browsers on a table link (each pilot only sees their own dice; the server holds the
@@ -60,12 +62,21 @@ Reroll tokens let both pilots reroll any of their unplaced dice.
 
 ## A note on fidelity
 
-The rules and scenario list follow the published game, and the artwork is drawn from scratch. A few numbers are not
-available in print online, so they are reconstructed and may differ from the box: the exact airplane/traffic
-positions and turn corridors on each approach track, which scenario gets which random ability cards, the dial range,
-and the Intern, Wind and Kerosene numbers. They are all data in
-[`src/skyteam/game/scenarios.py`](src/skyteam/game/scenarios.py) and the constants at the top of
-[`engine.py`](src/skyteam/game/engine.py), so they are easy to adjust.
+Everything below was checked against a physical copy of the game and its two rulebooks (Landing Procedure and
+Flight Log):
+
+- All 21 **Approach Tracks** are transcribed space by space from the printed strips: Airplane tokens, Traffic die
+  icons and turn tabs (the five Axis positions, permitted triangles vs. red ✕), plus each strip's modules and
+  number of Special Ability cards. See [`scenarios.py`](src/skyteam/game/scenarios.py).
+- The **Altitude Track** has Reroll icons at 6000 and 2000 ft on the green/yellow side and only at 6000 ft on the
+  red/black side; the first-player arrow alternates, starting with the Pilot.
+- The **Wind Ring** has 20 spaces (+3 at the start, down to −3 opposite), the Intern board holds six tokens (1 to 6),
+  kerosene starts at 20, and the module and ability rules use the wording of the rulebooks.
+
+Two things could not be read from the rulebooks and are best guesses: the faces of the Traffic die (modelled as a
+normal d6, where a 1 puts the plane on your current space) and the total number of Reroll tokens in the pool
+(three, per the designer). The Haneda red strip shows Kerosene and Intern icons while the booklet card only shows
+Intern; the game follows the strip.
 
 Sky Team is designed by Luc Rémond and published by Scorpion Masqué. This is an unofficial fan project, not
 affiliated with them.

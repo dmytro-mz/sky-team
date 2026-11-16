@@ -1,5 +1,5 @@
 import { boardSVG, legal } from "./board.js";
-import { COLORS, dieHidden, dieSVG, PLANE_PATH, coffeeIcon, rerollIcon } from "./art.js";
+import { COLORS, dieHidden, dieSVG, PLANE_PATH, coffeeIcon, moduleChip, rerollIcon, starBadge } from "./art.js";
 
 const $app = document.getElementById("app");
 const $overlay = document.getElementById("overlay");
@@ -107,10 +107,11 @@ function lobbyView(m) {
   const groups = ["green", "yellow", "red", "black"].map((lvl) => {
     const cards = S.config.scenarios.filter((s) => s.level === lvl).map((s) => {
       const p = prog[s.id];
+      const chips = s.modules.map((x) => `<svg viewBox="-16 -16 32 32" class="chip" title="${esc(x.name)}">${moduleChip(x.key, 0, 0, 1, "#2a4f9e", "#fff")}</svg>`).join("");
+      const star = s.abilities ? `<svg viewBox="-17 -17 34 34" class="chip" title="${s.abilities} Special Ability card${s.abilities > 1 ? "s" : ""}">${starBadge(s.abilities, 0, 0, 1).replace(/fill="#fff"/g, 'fill="#2a4f9e"').replace('stroke="#fff"', 'stroke="#2a4f9e"').replace('fill="#1c2f55"', 'fill="#fff"')}</svg>` : "";
       return `<button class="card ${s.level} ${s.id === m.scenario ? "sel" : ""}" data-act="scenario" data-id="${s.id}" ${host ? "" : "disabled"}>
-        <span class="code">${s.code}</span><span class="city">${esc(s.city)}</span>
-        <span class="mods">${s.modules.map((x) => `<i>${esc(x.name)}</i>`).join("")}${s.abilities ? `<i class="ab">★ ${s.abilities}</i>` : ""}</span>
-        ${p?.wins ? `<span class="stamp" title="Landed ${p.wins}×">✓ LANDED</span>` : ""}</button>`;
+        <span class="hd"><i class="ring ${p?.wins ? "done" : ""}">${p?.wins ? "✓" : ""}</i><b>${s.code}</b><span>${esc(s.airport)}</span></span>
+        <span class="bd"><span class="city">${esc(s.city)}</span><span class="chips">${chips}${star}</span></span></button>`;
     }).join("");
     return `<section><h3 class="lvl ${lvl}">${esc(S.config.levels[lvl])}</h3><div class="cards">${cards}</div></section>`;
   }).join("");
@@ -134,10 +135,11 @@ function lobbyView(m) {
           <p>${esc(sc.story)}</p>
           <ul class="facts">
             <li><b>Approach</b> ${sc.length} spaces · ${Object.values(sc.planes).reduce((a, b) => a + b, 0)} airplanes${Object.keys(sc.traffic).length ? " · traffic die" : ""}${Object.keys(sc.turns).length ? " · turns" : ""}</li>
-            <li><b>Reroll tokens</b> ${sc.rerolls.length} on the altitude track</li>
+            <li><b>Reroll tokens</b> ${sc.rerolls.length} on the altitude track (${sc.rerolls.map((r) => (7 - r) * 1000 + " ft").join(" and ")})</li>
             ${sc.modules.map((x) => `<li><b>${esc(x.name)}</b> ${esc(x.text)}</li>`).join("")}
-            ${sc.abilities ? `<li><b>Special abilities</b> ${sc.abilities} random card${sc.abilities > 1 ? "s" : ""} are drawn at takeoff.</li>` : ""}
           </ul>
+          ${sc.abilities ? `<div class="abpick"><b>Special Ability cards</b> <span class="muted">choose up to ${sc.abilities}${m.abilities.length < sc.abilities ? "; the rest are drawn at random" : ""}</span>
+            <div class="abgrid">${Object.entries(m.abilityCatalog).map(([k, v]) => `<button class="abbtn ${m.abilities.includes(k) ? "on" : ""}" data-act="ability" data-key="${k}" ${host ? "" : "disabled"}><b>${esc(v.name)}</b><span>${esc(v.text)}</span></button>`).join("")}</div></div>` : ""}
           ${prog[sc.id]?.wins ? `<div class="record">✓ Landed ${prog[sc.id].wins}× · ${prog[sc.id].attempts} flights</div>` : prog[sc.id] ? `<div class="record lost">${prog[sc.id].attempts} attempts so far</div>` : ""}
         </div>
         <div class="mode">
@@ -250,7 +252,7 @@ function infoPanel(m, g) {
   const abil = g.abilities.map((a) => `<div class="ab-card"><b>★ ${esc(a.name)}</b><span>${esc(a.text)}</span></div>`).join("");
   const mods = sc.modules.map((x) => `<div class="mod-card"><b>${esc(x.name)}</b><span>${esc(x.text)}</span></div>`).join("");
   const log = g.log.slice(-14).map((l) => `<li class="${l.kind} ${l.seat || ""}">${esc(l.text)}</li>`).join("");
-  return `<aside class="info">${abil ? `<h4>Special abilities</h4>${abil}` : ""}${mods ? `<h4>Modules</h4>${mods}` : ""}<h4>Flight log</h4><ul class="log">${log}</ul></aside>`;
+  return `<div class="info">${abil ? `<h4>Special abilities</h4>${abil}` : ""}${mods ? `<h4>Modules</h4>${mods}` : ""}<h4>Flight log</h4><ul class="log">${log}</ul></div>`;
 }
 
 function timerHTML(g) {
@@ -276,10 +278,10 @@ function gameView(m) {
     </header>
     <div class="status ${g.result ? (g.result.won ? "win" : "lose") : ""}">${esc(statusLine(m, g))}</div>
     <div class="stage">
+      <aside class="side left">${trayView("pilot", m, g)}<div class="tools">${toolbar(m, g)}</div></aside>
       <div class="boardwrap" id="boardwrap">${boardSVG(g, S.ui)}</div>
-      ${infoPanel(m, g)}
+      <aside class="side right">${trayView("copilot", m, g)}${infoPanel(m, g)}</aside>
     </div>
-    <div class="trays">${trayView("pilot", m, g)}<div class="tools">${toolbar(m, g)}</div>${trayView("copilot", m, g)}</div>
     ${cover ? `<div class="cover"><div><h2>Pass the device to the ${cap(S.ui.lastTurn)}</h2><p>Don't peek at the other pilot's dice.</p><button class="btn primary big" data-act="uncover">I'm the ${cap(S.ui.lastTurn)}</button></div></div>` : ""}
   </div>`;
 }
@@ -299,15 +301,16 @@ function resultOverlay(m) {
 }
 
 const RULES = `<h2>How to land</h2>
-<p>You have <b>7 rounds</b>. Each round both pilots secretly roll <b>4 dice</b>, then take turns putting one die on the control panel (first player alternates). You may talk strategy before the roll, never values.</p>
+<p>You have <b>7 rounds</b> (6000 ft down to the final approach). Each round: talk strategy, both pilots roll <b>4 dice</b> in secret, then you take turns placing one die on a free space of your colour. The first player alternates every round (the arrow on the Altitude Track). Never talk about dice values.</p>
 <ul>
-<li><b>Axis</b> (mandatory): the plane tips toward the higher die by the difference. Reaching the red <b>✕</b> spins you out. It must be level at the end.</li>
-<li><b>Engines</b> (mandatory): total vs. the markers. Up to blue: hold. Up to orange: advance 1 space. Above orange: advance 2. Moving onto planes is fine, leaving a space that still holds planes is a collision, and moving past the airport loses. Landing gear pushes blue up, flaps push orange up.</li>
-<li><b>Radio</b>: removes an airplane that many spaces ahead (1 = your current space).</li>
-<li><b>Landing gear</b> (Pilot, any order) and <b>Flaps</b> (Co-Pilot, in order) need matching dice and must all be out to land.</li>
-<li><b>Brakes</b> (Pilot, 2 → 4 → 6): in the final round the engines total must be below the red marker.</li>
-<li><b>Concentration</b>: any die earns a Coffee (max 3). A Coffee changes a die by ±1 as it is placed. <b>Reroll tokens</b> let both pilots reroll any of their unplaced dice.</li>
-<li>After round 6 the airport must be in view; round 7 is the final one. Win: no airplanes left, gear and flaps out, plane level, engines below the brakes.</li></ul>`;
+<li><b>Axis</b> (mandatory, one die each): the dial turns toward the higher die by the difference. Reaching the red <b>✕</b> (3 marks) is a spin and you lose. It must be level (0) at the end of the final round.</li>
+<li><b>Engines</b> (mandatory, one die each): the sum is compared with the Aerodynamics markers. Up to the blue marker: hold. Up to the orange marker: advance 1 space. Above orange: advance 2. Each Landing Gear moves blue up, each Flap moves orange up.</li>
+<li>Leaving a space that still has Airplane tokens is a <b>collision</b>; advancing from the airport is an <b>overshoot</b>. Turn tabs: when entering a space the Axis must be on a triangle, not a red ✕.</li>
+<li><b>Radio</b>: removes an Airplane that many spaces ahead (1 = your current space). The Pilot has one Radio space, the Co-Pilot two.</li>
+<li><b>Landing Gear</b> (Pilot: 1·2, 3·4, 5·6, any order) and <b>Flaps</b> (Co-Pilot: 1·2, 2·3, 4·5, 5·6, in order) must all be out to land.</li>
+<li><b>Brakes</b> (Pilot: 2, 4, 6 in order). In the <b>final round</b> the Engines total must be lower than the red marker.</li>
+<li><b>Concentration</b>: any die earns a Coffee token (max 3). A Coffee changes a die by ±1 (1–6, no wrap) as it is placed. <b>Reroll tokens</b> let both players reroll any of their unplaced dice, once.</li>
+<li>After round 6 you must be over the airport, otherwise you crash. If you arrive early, hold the pattern. At the end of the final round you win when no Airplanes remain, gear and flaps are out, the plane is level and your speed is below the Brakes.</li></ul>`;
 
 // ------------------------------------------------------------------ render
 function render() {
@@ -381,6 +384,13 @@ document.addEventListener("click", async (e) => {
       break;
     }
     case "home": S.code = null; S.snap = null; S.ws?.close(); history.pushState(null, "", "/"); await refreshConfig(); render(); break;
+    case "ability": {
+      const have = new Set(m.abilities), k = t.dataset.key, max = m.game ? 0 : S.config.scenarios.find((x) => x.id === m.scenario).abilities;
+      if (have.has(k)) have.delete(k);
+      else { have.add(k); while (have.size > max) have.delete(have.values().next().value); }
+      send({ type: "abilities", keys: [...have] });
+      break;
+    }
     case "scenario": send({ type: "scenario", id: t.dataset.id }); break;
     case "hotseat": send({ type: "hotseat", on: t.checked }); break;
     case "claim": send({ type: "claim", seat: t.dataset.seat }); break;
