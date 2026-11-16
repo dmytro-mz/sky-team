@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+*.egg-info
+.venv
+.pytest_cache/
+.ruff_cache/
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
+
+# Local player data: which scenarios you have landed. Never committed.
+progress.json
+.skyteam/
+
+# Scratch output
+shots/
+tmp/

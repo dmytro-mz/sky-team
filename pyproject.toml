@@ -1,0 +1,36 @@
+[project]
+name = "skyteam"
+version = "0.1.0"
+description = "Sky Team — the cooperative landing game, playable in the browser"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "typer>=0.12",
+    "uvicorn[standard]>=0.30",
+    "rich>=13",
+]
+
+[project.scripts]
+skyteam = "skyteam:main"
+
+[build-system]
+requires = ["uv_build>=0.12.7,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[dependency-groups]
+dev = ["httpx2>=2.16", "pytest>=8", "ruff>=0.6", "playwright>=1.45"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+ignore = ["E501", "B905"]
