@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 import shutil
 import socket
@@ -84,6 +85,13 @@ def serve(
     else:
         console.print("[dim]  friends elsewhere? restart with --tunnel for a public link")
     console.print(f"  progress: {progress.resolve()}")
+    console.print("[dim]  table activity is logged below (Ctrl+C to stop)\n")
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(asctime)s  %(message)s", datefmt="%H:%M:%S"))
+    web_log = logging.getLogger("skyteam.web")
+    web_log.addHandler(handler)
+    web_log.setLevel(logging.INFO)
+    web_log.propagate = False
     try:
         uvicorn.run(
             create_app(Progress(progress), public_url=public_url, lan_url=lan_url),

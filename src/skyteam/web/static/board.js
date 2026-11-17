@@ -133,14 +133,14 @@ function slot(st, ui, sid, cx, cy, o = {}) {
 /** The switch under a space: an LED and a slide knob that moves across once the space is done. */
 function toggle(x, y, on, was, color = "#3fe07a") {
   const off = color === "#3fe07a" ? "#173a26" : "#3d1716";
-  let g = `<rect x="${x - 42}" y="${y - 13}" width="84" height="26" rx="13" fill="url(#well)"/>`;
+  let g = `<g data-info="switch"><rect x="${x - 42}" y="${y - 13}" width="84" height="26" rx="13" fill="url(#well)"/>`;
   g += `<rect x="${x - 40}" y="${y - 11}" width="80" height="22" rx="11" fill="#1d252e" filter="url(#inner)"/>`;
   g += `<circle cx="${x - 26}" cy="${y}" r="6.5" fill="${on ? color : off}"/>`;
   if (on) g += `<circle cx="${x - 26}" cy="${y}" r="9" fill="${color}" filter="url(#bloom)" class="${was === false ? "ledon" : ""}"/><circle cx="${x - 28}" cy="${y - 2}" r="2.2" fill="#fff" opacity=".8"/>`;
   g += `<path d="M${x - 10},${y} H${x + 30}" stroke="#0b0f14" stroke-width="3" stroke-linecap="round"/>`;
   const kx = (v) => `translate(${v ? 22 : 0}px,0px)`;
   g += `<g ${tw(was == null ? null : kx(was), kx(on), 0.5, 0.15)}><g transform="translate(${x - 4} ${y})" filter="url(#soft)"><rect x="-11" y="-9" width="22" height="18" rx="5" fill="url(#knob)" stroke="#6c7884"/>
-    <path d="M-4,-4 V4 M0,-4 V4 M4,-4 V4" stroke="#7f8b96" stroke-width="1.4"/></g></g>`;
+    <path d="M-4,-4 V4 M0,-4 V4 M4,-4 V4" stroke="#7f8b96" stroke-width="1.4"/></g></g></g>`;
   return g;
 }
 
@@ -148,7 +148,7 @@ function toggle(x, y, on, was, color = "#3fe07a") {
 const LEVEL = COLORS.lvl;
 
 function turnTab(cx, y, allowed) {
-  let g = `<g filter="url(#soft)"><rect x="${cx - 62}" y="${y}" width="124" height="34" rx="9" fill="url(#cream)" stroke="#a89c7c" stroke-width="1.2"/></g>`;
+  let g = `<g data-info="turn"><g filter="url(#soft)"><rect x="${cx - 62}" y="${y}" width="124" height="34" rx="9" fill="url(#cream)" stroke="#a89c7c" stroke-width="1.2"/></g>`;
   for (let k = -2; k <= 2; k++) {
     const x = cx + k * 22, yy = y + 17 + Math.abs(k) * 1.5, rot = k * 18;
     if (allowed.includes(k)) {
@@ -157,14 +157,14 @@ function turnTab(cx, y, allowed) {
       g += `<g transform="translate(${x} ${yy}) rotate(${rot})" stroke="#d3212a" stroke-width="3.2" stroke-linecap="round"><path d="M-5,-5 L5,5 M5,-5 L-5,5"/></g>`;
     }
   }
-  return g;
+  return g + "</g>";
 }
 
 function cubeTab(cx, y, n) {
   const w = 18 + n * 26;
-  let g = `<g filter="url(#soft)"><rect x="${cx - w / 2}" y="${y}" width="${w}" height="32" rx="8" fill="url(#cream)" stroke="#a89c7c" stroke-width="1.2"/></g>`;
+  let g = `<g data-info="traffic"><g filter="url(#soft)"><rect x="${cx - w / 2}" y="${y}" width="${w}" height="32" rx="8" fill="url(#cream)" stroke="#a89c7c" stroke-width="1.2"/></g>`;
   for (let i = 0; i < n; i++) g += cube(cx + (i - (n - 1) / 2) * 26, y + 16, 0.92);
-  return g;
+  return g + "</g>";
 }
 
 function header(x, y, w, h, color, code, name, mods, stars) {
@@ -195,12 +195,13 @@ function cellBox(x, y, w) {
 function approach(st, ui) {
   const sc = st.scenario, n = sc.length, P = ui.prev;
   const x = STRIP.appX, w = STRIP.w, hh = STRIP.hh;
-  let g = header(x, -hh, w, hh, LEVEL[sc.level], sc.code, sc.airport, sc.modules.map((m) => m.key), sc.abilities);
+  let g = `<g data-info="approach">${header(x, -hh, w, hh, LEVEL[sc.level], sc.code, sc.airport, sc.modules.map((m) => m.key), sc.abilities)}</g>`;
   for (let r = 0; r < n; r++) {
     const i = n - 1 - r, y = r * CELL, mid = x + w / 2, cy = y + CELL / 2;
-    g += cellBox(x, y, w);
+    g += `<g data-info="${i === n - 1 ? "airport" : i === 0 ? "start" : "space"}">${cellBox(x, y, w)}`;
     if (i === n - 1) g += airport(mid + 14, cy - 2, 0.6);
     if (i === 0) g += cloud(mid - 44, cy + 2, 0.5) + cloud(mid + 4, cy - 4, 0.72) + cloud(mid + 56, cy + 4, 0.3);
+    g += "</g>";
     const tr = sc.traffic[i] || 0;
     if (tr) g += cubeTab(mid, y + CELL - 36, tr);
     const turn = sc.turns[i];
@@ -214,7 +215,7 @@ function approach(st, ui) {
       const [px, py] = at(k);
       const cls = k >= cnt ? "flyaway" : k >= before ? "flyin" : "";
       const delay = cls ? `style="animation-delay:${(k - Math.min(cnt, before)) * 0.18}s"` : "";
-      g += `<g class="${cls}" ${delay}>${planeToken(px, py, 0.4, 45, 0.9)}</g>`;
+      g += `<g class="${cls}" ${delay} data-info="planes">${planeToken(px, py, 0.4, 45, 0.9)}</g>`;
     }
   }
   const row = n - 1 - st.position, prevRow = P ? n - 1 - P.position : null;
@@ -226,20 +227,21 @@ function altitude(st, ui) {
   const sc = st.scenario, P = ui.prev, x = STRIP.altX, w = STRIP.w, hh = 46, rows = 7;
   const dark = sc.level === "red" || sc.level === "black";
   const c1 = dark ? LEVEL.red : LEVEL.green, c2 = dark ? LEVEL.black : LEVEL.yellow;
-  let g = `<rect x="${x + 58}" y="${-hh + 9}" width="${w - 116}" height="13" rx="6.5" fill="${c1}"/><rect x="${x + 58}" y="${-hh + 26}" width="${w - 116}" height="13" rx="6.5" fill="${c2}"/>`;
+  let g = `<rect data-info="altitude" x="${x + 58}" y="${-hh + 9}" width="${w - 116}" height="13" rx="6.5" fill="${c1}"/><rect x="${x + 58}" y="${-hh + 26}" width="${w - 116}" height="13" rx="6.5" fill="${c2}"/>`;
   for (let r = 0; r < rows; r++) {
     const round = 7 - r, y = r * CELL, cy = y + CELL / 2;
     const left = round % 2 === 1; // odd rounds: the Pilot (left, blue) plays first
     const accent = left ? "#4c92ff" : "#ffad2e";
-    g += cellBox(x, y, w);
+    g += `<g data-info="${round === 7 ? "final" : "altitude"}">` + cellBox(x, y, w);
     g += `<rect x="${left ? x + 11 : x + w - 17}" y="${y + 5}" width="6" height="${CELL - 10}" rx="3" fill="${accent}"/>`;
     const ax = left ? x + 29 : x + w - 29;
     g += `<path d="${left ? `M${ax - 4},${cy} l11,-7 v14Z` : `M${ax + 4},${cy} l-11,-7 v14Z`}" fill="${accent}"/>`;
     if (round === 7) g += landingPlane(x + w / 2, cy + 2, 0.74);
     else g += `<text x="${x + w / 2 - 6}" y="${cy + 11}" text-anchor="middle" ${FONT} font-weight="700" font-size="32" letter-spacing="3" fill="#eaf2ff">${(7 - round) * 1000}<tspan font-size="15" fill="#8fb2e6" dx="3">FT</tspan></text>`;
+    g += "</g>";
     if (sc.rerolls.includes(round)) {
       const taken = round <= st.round && !(P && round > P.round);
-      g += `<g class="${P && round <= st.round && round > P.round ? "vanish" : ""}">${rerollIcon(x + w - 46, cy, 0.6, !taken && round > st.round)}</g>`;
+      g += `<g data-info="reroll-track" class="${P && round <= st.round && round > P.round ? "vanish" : ""}">${rerollIcon(x + w - 46, cy, 0.6, !taken && round > st.round)}</g>`;
     }
   }
   return strip(x, w, hh, rows, 7 - st.round, P ? 7 - P.round : null, g);
@@ -256,7 +258,7 @@ function dial(st, ui) {
   const { x, y, r } = DIAL;
   const P = ui.prev;
   const rot = (a) => `rotate(${a * STEP}deg)`;
-  let g = `<circle cx="${x}" cy="${y}" r="${r + 44}" fill="url(#well)" opacity=".9"/>`;
+  let g = `<g data-info="dial"><circle cx="${x}" cy="${y}" r="${r + 44}" fill="url(#well)" opacity=".9"/>`;
   g += `<circle cx="${x}" cy="${y}" r="${r + 36}" fill="url(#bezel)"/><circle cx="${x}" cy="${y}" r="${r + 29}" fill="#151a21"/>`;
   // bank scale: permitted triangles and the red crosses at 3 marks
   for (let k = -3; k <= 3; k++) {
@@ -284,7 +286,7 @@ function dial(st, ui) {
     <path d="M-98,0 H-36 L-22,16 M98,0 H36 L22,16" fill="none" stroke="#ffb020" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
     <circle r="7" fill="#ffb020" stroke="#101317" stroke-width="3"/>
     <circle r="${r}" fill="url(#glass)"/>
-    <path d="${arcPath(0, 0, r - 8, -60, 10)}" fill="none" stroke="#fff" stroke-opacity=".25" stroke-width="3" stroke-linecap="round"/></g>`;
+    <path d="${arcPath(0, 0, r - 8, -60, 10)}" fill="none" stroke="#fff" stroke-opacity=".25" stroke-width="3" stroke-linecap="round"/></g></g>`;
   return g;
 }
 
@@ -292,7 +294,7 @@ const gaugeAngle = (n) => 250 - (n - 2) * 14;
 
 function gauge(st, ui) {
   const { x, y } = DIAL, R = 208, P = ui.prev;
-  let g = `<path d="${arcPath(x, y, R, 258, 102)}" fill="none" stroke="url(#bezel)" stroke-width="52" stroke-linecap="round"/>`;
+  let g = `<g data-info="speed"><path d="${arcPath(x, y, R, 258, 102)}" fill="none" stroke="url(#bezel)" stroke-width="52" stroke-linecap="round"/>`;
   g += `<path d="${arcPath(x, y, R, 258, 102)}" fill="none" stroke="#161b22" stroke-width="44" stroke-linecap="round"/>`;
   // advance zones: hold (blue), 1 space (amber), 2 spaces (red)
   const zone = (from, to, color) => {
@@ -305,24 +307,25 @@ function gauge(st, ui) {
     const on = st.speed === n;
     g += `<g transform="translate(${px} ${py}) rotate(${a - 180})">${on ? `<rect x="-17" y="-17" width="34" height="32" rx="7" fill="#ffb020" filter="url(#glow)"/>` : ""}<text y="9" text-anchor="middle" ${FONT} font-weight="700" font-size="25" fill="${on ? "#1a1205" : "#e9eef3"}">${n}</text></g>`;
   }
-  const marker = (after, before, color, dark) => {
+  g += "</g>";
+  const marker = (after, before, color, dark, info) => {
     const a = (v) => `rotate(${(gaugeAngle(v) + gaugeAngle(v + 1)) / 2}deg)`;
-    return `<g transform="translate(${x} ${y})"><g ${tw(before == null ? null : a(before), a(after), 1, 0.2)}><g transform="translate(0 ${-(R + 32)})" filter="url(#soft)">
+    return `<g transform="translate(${x} ${y})" data-info="${info}"><g ${tw(before == null ? null : a(before), a(after), 1, 0.2)}><g transform="translate(0 ${-(R + 32)})" filter="url(#soft)">
       <path d="M-11,-16 H11 L13,4 L0,22 L-13,4Z" fill="${color}" stroke="${dark}" stroke-width="2.2" stroke-linejoin="round"/><path d="M-7,-12 H7 L8,0 H-8Z" fill="#fff" opacity=".28"/></g></g></g>`;
   };
-  g += marker(st.blue, P?.blue, "#2f6fe6", "#0b2a77") + marker(st.orange, P?.orange, "#f58a1f", "#8f3d05");
+  g += marker(st.blue, P?.blue, "#2f6fe6", "#0b2a77", "blue-marker") + marker(st.orange, P?.orange, "#f58a1f", "#8f3d05", "orange-marker");
   return g;
 }
 
 function brakeScale(st, ui) {
   const P = ui.prev, xs = (i) => CX + (i - 4) * 66, y = 1270;
-  let g = `<rect x="${CX - 178}" y="${y - 20}" width="356" height="40" rx="12" fill="url(#lcd)" stroke="#8a98a6" stroke-width="2"/>`;
+  let g = `<g data-info="brake-scale"><rect x="${CX - 178}" y="${y - 20}" width="356" height="40" rx="12" fill="url(#lcd)" stroke="#8a98a6" stroke-width="2"/>`;
   for (let i = 2; i <= 6; i++) g += txt(xs(i), y + 9, i, 26, "#e9eef3", "middle", `font-weight="800"`);
   const pos = (lim) => {
     const after = lim ? lim - 1 : 1;
     return `translate(${after <= 1 ? xs(2) - 33 : (xs(after) + xs(after + 1)) / 2}px,0px)`;
   };
-  g += `<g ${tw(P ? pos(P.brakeLimit) : null, pos(st.brakeLimit), 0.9, 0.2)}><g transform="translate(0 ${y - 32})" filter="url(#soft)"><path d="M-11,-6 H11 V8 L0,22 L-11,8Z" fill="#e0342b" stroke="#6b0f0a" stroke-width="2.2" stroke-linejoin="round"/></g></g>`;
+  g += `<g ${tw(P ? pos(P.brakeLimit) : null, pos(st.brakeLimit), 0.9, 0.2)}><g transform="translate(0 ${y - 32})" filter="url(#soft)"><path d="M-11,-6 H11 V8 L0,22 L-11,8Z" fill="#e0342b" stroke="#6b0f0a" stroke-width="2.2" stroke-linejoin="round"/></g></g></g>`;
   return g;
 }
 
@@ -345,14 +348,13 @@ function panel(st, ui) {
   // engines and the speed readout
   g += slot(st, ui, "engine_pilot", 474, 1170, { size: 90 }) + slot(st, ui, "engine_copilot", 766, 1170, { size: 90 });
   g += lbl(CX, 1138, "ENGINES");
-  g += `<rect x="${CX - 46}" y="1150" width="92" height="44" rx="10" fill="url(#lcd)" stroke="#8a98a6" stroke-width="2"/>`;
-  g += st.speed === null ? txt(CX, 1182, "– –", 26, "#4d5b6b", "middle", `font-weight="800"`) : txt(CX, 1183, st.speed, 32, "#ffb020", "middle", `font-weight="800" filter="url(#glow)"`);
+  g += `<g data-info="engines-total"><rect x="${CX - 46}" y="1150" width="92" height="44" rx="10" fill="url(#lcd)" stroke="#8a98a6" stroke-width="2"/>`;
+  g += (st.speed === null ? txt(CX, 1182, "– –", 26, "#4d5b6b", "middle", `font-weight="800"`) : txt(CX, 1183, st.speed, 32, "#ffb020", "middle", `font-weight="800" filter="url(#glow)"`)) + "</g>";
   // left column: rerolls, radio, landing gear
-  g += `<rect x="186" y="618" width="110" height="70" rx="14" fill="url(#lcd)" stroke="url(#bezel)" stroke-width="4"/>`;
-  for (let i = 0; i < 3; i++) {
-    const have = i < st.rerolls, had = P ? i < P.rerolls : have;
-    g += `<g class="${have && !had ? "pop" : !have && had ? "vanish" : ""}">${rerollIcon(209 + i * 32, 653, 0.6, have || had)}</g>`;
-  }
+  const rrChanged = P && P.rerolls !== st.rerolls;
+  g += `<g data-info="rerolls"><rect x="186" y="618" width="110" height="70" rx="14" fill="url(#lcd)" stroke="url(#bezel)" stroke-width="4"/>`;
+  g += rerollIcon(216, 653, 0.82, st.rerolls > 0);
+  g += `<g class="${rrChanged ? "pop" : ""}">${txt(262, 670, st.rerolls, 46, st.rerolls ? "#ffb020" : "#4d5b6b", "middle", `font-weight="800" ${st.rerolls ? `filter="url(#glow)"` : ""}`)}</g></g>`;
   g += lbl(241, 706, "REROLL", "middle", 13);
   g += slot(st, ui, "radio_pilot", 240, 778) + lbl(240, 848, "RADIO");
   g += lbl(240, 900, "GEAR");
@@ -381,10 +383,11 @@ function panel(st, ui) {
   g += lbl(319, 1452, "COFFEE", "middle", 13) + lbl(676, 1452, "CONCENTRATION", "middle", 13);
   for (let i = 0; i < 3; i++) {
     const x = 253 + i * 66, have = i < st.coffee, had = P ? i < P.coffee : have;
-    g += `<circle cx="${x}" cy="1500" r="25" fill="url(#well)"/><circle cx="${x}" cy="1500" r="21" fill="#26323f" filter="url(#inner)"/>`;
+    g += `<g data-info="coffee"><circle cx="${x}" cy="1500" r="25" fill="url(#well)"/><circle cx="${x}" cy="1500" r="21" fill="#26323f" filter="url(#inner)"/>`;
     if (have) g += `<g class="${had ? "" : "pop"}">${coffeeIcon(x, 1496, 0.9)}</g>`;
     else if (had) g += `<g class="vanish">${coffeeIcon(x, 1496, 0.9)}</g>`;
     else g += icon("coffee", x, 1500, 0.95, "#5f7387", 0.8);
+    g += "</g>";
   }
   for (let i = 0; i < 3; i++) g += slot(st, ui, `conc_${i}`, 562 + i * 114, 1500, { size: 66 });
   return g;
@@ -392,13 +395,13 @@ function panel(st, ui) {
 
 function iceBoard(st, ui) {
   const xs = [CX - 156, CX - 52, CX + 52, CX + 156];
-  let g = `<rect x="${CX - 212}" y="1250" width="424" height="38" rx="10" fill="url(#lcd)" stroke="#8a98a6" stroke-width="2"/>`;
+  let g = `<g data-info="ice-scale"><rect x="${CX - 212}" y="1250" width="424" height="38" rx="10" fill="url(#lcd)" stroke="#8a98a6" stroke-width="2"/>`;
   [2, 3, 4, 5].forEach((v, i) => { g += txt(xs[i], 1278, v, 24, "#e9eef3", "middle", `font-weight="800"`); });
   const after = st.icePairs + 1;
   const mx = after <= 1 ? xs[0] - 46 : after >= 5 ? xs[3] + 46 : (xs[after - 2] + xs[after - 1]) / 2;
   const P = ui.prev;
   const pmx = P ? (() => { const a = P.icePairs + 1; return a <= 1 ? xs[0] - 46 : a >= 5 ? xs[3] + 46 : (xs[a - 2] + xs[a - 1]) / 2; })() : null;
-  g += `<g ${tw(pmx == null ? null : `translate(${pmx}px,0px)`, `translate(${mx}px,0px)`)}><path d="M-10,1246 h20 v10 l-10,12 l-10,-12Z" fill="#e0342b" stroke="#6b0f0a" stroke-width="2"/></g>`;
+  g += `<g ${tw(pmx == null ? null : `translate(${pmx}px,0px)`, `translate(${mx}px,0px)`)}><path d="M-10,1246 h20 v10 l-10,12 l-10,-12Z" fill="#e0342b" stroke="#6b0f0a" stroke-width="2"/></g></g>`;
   xs.forEach((x, i) => {
     g += slot(st, ui, `ice_pilot_${i}`, x, 1330, { size: 58 }) + slot(st, ui, `ice_copilot_${i}`, x, 1400, { size: 58 });
   });
@@ -415,28 +418,28 @@ function modulePanel(x, y, w, h) {
 
 function kerosene(st, ui) {
   const sc = st.scenario, leak = sc.modules.some((m) => m.key === "leak"), P = ui.prev;
-  const top = 714, step = 36.4, tubeX = 70, tubeW = 40;
+  const top = 734, step = 35.6, tubeX = 70, tubeW = 40;
   const yv = (k) => top + (20 - k) * step;
   const level = (k) => `translate(0px,${(20 - Math.max(0, Math.min(20, k))) * step}px)`;
   let g = modulePanel(10, 590, 150, 960);
   g += lbl(85, 616, leak ? "LEAK" : "KEROSENE", "middle", 14);
   g += `<clipPath id="tube"><rect x="${tubeX}" y="${top - 10}" width="${tubeW}" height="${20 * step + 24}" rx="12"/></clipPath>`;
-  g += `<rect x="${tubeX - 5}" y="${top - 15}" width="${tubeW + 10}" height="${20 * step + 34}" rx="16" fill="url(#well)"/>`;
+  g += `<g data-info="${leak ? "leak-track" : "kerosene-track"}"><rect x="${tubeX - 5}" y="${top - 15}" width="${tubeW + 10}" height="${20 * step + 34}" rx="16" fill="url(#well)"/>`;
   g += `<rect x="${tubeX}" y="${top - 10}" width="${tubeW}" height="${20 * step + 24}" rx="12" fill="#141a22"/>`;
   g += `<g clip-path="url(#tube)"><g ${tw(P ? level(P.kerosene) : null, level(st.kerosene), 1.2)}><rect x="${tubeX}" y="${top}" width="${tubeW}" height="${20 * step + 400}" fill="url(#fuel)"/>
     <path d="M${tubeX},${top} H${tubeX + tubeW}" stroke="#fff6c2" stroke-width="3"/></g></g>`;
   g += `<rect x="${tubeX + 5}" y="${top - 6}" width="8" height="${20 * step + 16}" rx="4" fill="#fff" opacity=".18"/>`;
   for (let k = 20; k >= 1; k--) g += txt(56, yv(k) + 5, k, 14, "#4b5f74", "end", `font-weight="700"`) + `<path d="M${tubeX},${yv(k)} h10" stroke="#000" stroke-opacity=".35" stroke-width="2"/>`;
-  g += `<g transform="translate(90 ${yv(0) + 6})" stroke="#ff4335" stroke-width="5" stroke-linecap="round"><path d="M-8,-8 L8,8 M8,-8 L-8,8"/></g>`;
-  g += `<g ${tw(P ? level(P.kerosene) : null, level(st.kerosene), 1.2)}><g transform="translate(130 ${top})" filter="url(#soft)"><path d="M-14,0 L-4,-12 H22 V12 H-4Z" fill="#f4f7fa" stroke="#7b8896" stroke-width="2"/>${txt(10, 7, Math.max(0, st.kerosene), 18, "#1d2b3d", "middle", `font-weight="800"`)}</g></g>`;
-  if (leak) g += `<rect x="52" y="630" width="66" height="66" rx="14" fill="#1b2230" stroke="#ff4335" stroke-width="3"/><g transform="translate(85 663)" stroke="#ff4335" stroke-width="9" stroke-linecap="round"><path d="M-15,-15 L15,15 M15,-15 L-15,15"/></g>`;
-  else g += slot(st, ui, "kerosene", 76, 666, { size: 62 }) + `<rect x="114" y="646" width="38" height="22" rx="7" fill="#e0342b"/>` + txt(133, 663, "−6", 16, "#fff", "middle", `font-weight="800"`);
+  g += `<g transform="translate(90 ${yv(0) + 6})" stroke="#ff4335" stroke-width="5" stroke-linecap="round"><path d="M-8,-8 L8,8 M8,-8 L-8,8"/></g></g>`;
+  g += `<g data-info="${leak ? "leak-track" : "kerosene-track"}" ${tw(P ? level(P.kerosene) : null, level(st.kerosene), 1.2)}><g transform="translate(130 ${top})" filter="url(#soft)"><path d="M-14,0 L-4,-12 H22 V12 H-4Z" fill="#f4f7fa" stroke="#7b8896" stroke-width="2"/>${txt(10, 7, Math.max(0, st.kerosene), 18, "#1d2b3d", "middle", `font-weight="800"`)}</g></g>`;
+  if (leak) g += `<rect data-info="leak" x="52" y="630" width="66" height="66" rx="14" fill="#1b2230" stroke="#ff4335" stroke-width="3"/><g transform="translate(85 663)" stroke="#ff4335" stroke-width="9" stroke-linecap="round"><path d="M-15,-15 L15,15 M15,-15 L-15,15"/></g>`;
+  else g += slot(st, ui, "kerosene", 76, 664, { size: 58 }) + `<g data-info="kerosene-burn"><rect x="114" y="644" width="38" height="22" rx="7" fill="#e0342b"/>` + txt(133, 661, "−6", 16, "#fff", "middle", `font-weight="800"`) + "</g>";
   return g;
 }
 
 function windRing(st, ui) {
   const cx = 1158, cy = 772, R = 62, n = st.windRing.length, P = ui.prev;
-  let g = modulePanel(1074, 610, 170, 310) + lbl(cx, 640, "WIND", "middle", 14);
+  let g = `<g data-info="wind">` + modulePanel(1074, 610, 170, 310) + lbl(cx, 640, "WIND", "middle", 14);
   g += `<circle cx="${cx}" cy="${cy}" r="${R + 20}" fill="url(#bezel)"/><circle cx="${cx}" cy="${cy}" r="${R + 15}" fill="#161b22"/><circle cx="${cx}" cy="${cy}" r="${R - 17}" fill="#203d78" stroke="#0b1530" stroke-width="2"/>`;
   for (let i = 0; i < n; i++) {
     const a = (360 / n) * i, [px, py] = polar(cx, cy, R, a), on = i === st.wind, v = st.windRing[i];
@@ -448,7 +451,7 @@ function windRing(st, ui) {
   if (from !== null && from > st.wind) from -= n; // keep turning clockwise across the start
   g += `<g transform="translate(${cx} ${cy})"><g ${tw(from == null ? null : a(from), a(st.wind), 1.3)}><g transform="scale(.66)" filter="url(#soft)"><path d="${PLANE_PATH}" fill="url(#tok)" stroke="#7d8b9a" stroke-width="1.5"/></g></g></g>`;
   g += txt(cx, 898, `${st.windSpeed > 0 ? "+" : ""}${st.windSpeed} ENGINES`, 17, "#1d3a6a", "middle", `font-weight="800"`);
-  return g;
+  return g + "</g>";
 }
 
 function internBoard(st, ui) {
@@ -459,9 +462,9 @@ function internBoard(st, ui) {
   for (let i = 0; i < 6; i++) {
     const x = 354 + i * 102, v = st.interns[i - left];
     const has = i >= left && i < left + rem, had = i >= pLeft && i < pLeft + pRem;
-    g += `<g transform="translate(${x} ${y + 4})"><rect x="-27" y="-25" width="54" height="54" rx="10" fill="url(#well)"/><rect x="-24" y="-22" width="48" height="48" rx="8" fill="#1d6b37" filter="url(#inner)"/>
+    g += `<g data-info="intern-tokens" transform="translate(${x} ${y + 4})"><rect x="-27" y="-25" width="54" height="54" rx="10" fill="url(#well)"/><rect x="-24" y="-22" width="48" height="48" rx="8" fill="#1d6b37" filter="url(#inner)"/>
       <path d="M-11,2 l7,8 l15,-17" fill="none" stroke="#bdf5cf" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity=".8"/></g>`;
-    if (has) g += `<g transform="translate(${x} ${y + 4})" filter="url(#soft)"><rect x="-24" y="-22" width="48" height="48" rx="9" fill="url(#cream)" stroke="#2f9a48" stroke-width="3"/>${txt(0, 15, v, 34, "#1b3d73", "middle", `font-weight="800"`)}</g>`;
+    if (has) g += `<g data-info="intern-tokens" transform="translate(${x} ${y + 4})" filter="url(#soft)"><rect x="-24" y="-22" width="48" height="48" rx="9" fill="url(#cream)" stroke="#2f9a48" stroke-width="3"/>${txt(0, 15, v, 34, "#1b3d73", "middle", `font-weight="800"`)}</g>`;
     else if (had) g += `<g class="vanish"><g transform="translate(${x} ${y + 4})"><rect x="-24" y="-22" width="48" height="48" rx="9" fill="url(#cream)" stroke="#2f9a48" stroke-width="3"/></g></g>`;
   }
   return g;

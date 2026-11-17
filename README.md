@@ -23,6 +23,10 @@ plane on the runway. Share a link with a friend, on the same network or across t
   is `.gitignore`d, so it never ends up in the repo.
 - **Online play**: each pilot joins the table link from their own browser and only sees their own dice; the server
   holds the state and checks every move. `--tunnel` gives you a public link for a friend anywhere.
+- **Click to explain**: click anything on the board (a cube on the approach, a turn tab, a marker, a space) to read
+  what it means, with the live values of your flight.
+- **Leave or regroup**: the in-game *Leave* menu takes both pilots back to the lobby to pick another scenario, or
+  leaves the table. The server terminal logs every table opened, flight started and its outcome.
 - **Communication, minimal**: no chat. A speech-bubble symbol tells you when talking is allowed (before the roll,
   strategy only) and when it is silence time.
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 
@@ -10,6 +11,7 @@ from skyteam.game.scenarios import ABILITIES, BY_ID, SCENARIOS
 from skyteam.progress import Progress
 
 REALTIME_SECONDS = 60
+log = logging.getLogger("skyteam.web")
 
 
 class RoomError(Exception):
@@ -55,6 +57,7 @@ class Room:
             member = self.members[token] = Member(token, label)
             if self.host is None:
                 self.host = token
+            log.info("table %s: %s joined%s", self.id, label, " as host" if self.host == token else "")
         else:
             member.name = label
         return member
@@ -151,11 +154,22 @@ class Room:
             if any(self.seats[s] is None for s in SEATS):
                 raise RoomError("Both the Pilot and the Co-Pilot seat need a player")
             self.game = Game(self.scenario, abilities=self.abilities)
+            names = {s: self.members[m].name for s, m in self.seats.items() if m}
+            log.info(
+                "table %s takes off for %s: %s (Pilot) and %s (Co-Pilot)",
+                self.id,
+                self.scenario,
+                names["pilot"],
+                names["copilot"],
+            )
             self.recorded = False
             self.deadline = None
         elif kind == "lobby":
-            if not host:
-                raise RoomError("Only the host can do that")
+            if not host and member_id not in self.seats.values():
+                raise RoomError("Only the pilots can do that")
+            if self.game is not None and self.game.result is None:
+                log.info("table %s abandons %s and returns to the lobby", self.id, self.scenario)
+                self.game.say(f"{self.members[member_id].name} called the flight off.", "system")
             self.game = None
             self.deadline = None
         elif kind == "act":
@@ -199,6 +213,13 @@ class Room:
         if g.result is not None and not self.recorded:
             self.recorded = True
             self.progress.record(g.scenario.id, bool(g.result["won"]))
+            log.info(
+                "table %s %s %s: %s",
+                self.id,
+                "landed" if g.result["won"] else "lost",
+                g.scenario.id,
+                g.result["reason"],
+            )
 
     def tick(self) -> None:
         if self.game and self.deadline and time.monotonic() >= self.deadline and not self.game.result:

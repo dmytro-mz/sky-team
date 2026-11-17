@@ -1,4 +1,5 @@
 import { boardSVG, legal } from "./board.js";
+import { infoFor } from "./info.js";
 import { COLORS, dieHidden, dieSVG, PLANE_PATH, coffeeIcon, moduleChip, rerollIcon, starBadge } from "./art.js";
 
 const $app = document.getElementById("app");
@@ -17,7 +18,7 @@ const token = store.get("st-token") || (() => {
 
 const S = {
   config: null, ws: null, code: null, snap: null, error: null,
-  ui: { sel: null, delta: 0, rr: null, rulesOpen: false, prev: null, fresh: null },
+  ui: { sel: null, delta: 0, rr: null, rulesOpen: false, leaveOpen: false, prev: null, fresh: null },
   clock: 0,
 };
 
@@ -237,7 +238,7 @@ function toolbar(m, g) {
   }
   if (g.abilities.some((a) => a.key === "working_together") && !g.used.wt && sel && !sel.token) b += `<button class="btn small" data-act="swap-offer">Working Together: swap…</button>`;
   if (g.rerolls > 0) b += `<button class="btn small" data-act="rr-open"><svg viewBox="-20 -20 40 40" width="18" height="18">${rerollIcon(0, 0, 0.9)}</svg> Reroll (${g.rerolls})</button>`;
-  return b || `<span class="muted">${g.coffee ? "Select a die to use coffee on it." : ""}</span>`;
+  return (b || `<span class="muted">${g.coffee ? "Select a die to use coffee on it." : ""}</span>`) + `<span class="hint">Click anything on the board to see what it means.</span>`;
 }
 
 function infoPanel(m, g) {
@@ -266,7 +267,7 @@ function gameView(m) {
       <span class="commbox ${comm ? "on" : "off"}" title="${comm ? "You may talk about strategy, never about dice values" : "Silence: no talking while dice are placed"}">${comm ? COMM_ON : COMM_OFF}<span>${comm ? "You may talk" : "No talking"}</span></span>
       ${timerHTML(g)}
       <button class="btn small" data-act="rules">Rules</button>
-      <button class="btn small ghost" data-act="home">Leave</button>
+      <button class="btn small ghost" data-act="leave-menu">Leave</button>
     </header>
     <div class="status ${g.result ? (g.result.won ? "win" : "lose") : ""}">${esc(statusLine(m, g))}</div>
     <div class="stage">
@@ -303,7 +304,7 @@ function resultOverlay(m) {
     <h2>${won ? "Touchdown!" : "Mission failed"}</h2>
     <p>${esc(g.result.reason)}</p>
     ${won ? `<p class="muted">${esc(next.code)} · ${esc(next.airport)} is now marked as landed.</p>` : ""}
-    <div class="row">${m.isHost ? `<button class="btn primary" data-act="again">Fly again</button><button class="btn" data-act="lobby">Choose another scenario</button>` : `<span class="muted">The host decides what comes next.</span>`}
+    <div class="row">${m.isHost || m.mySeats.length ? `<button class="btn primary" data-act="again">Fly again</button><button class="btn" data-act="lobby">Choose another scenario</button>` : `<span class="muted">The host decides what comes next.</span>`}
     <button class="btn ghost" data-act="close-result">Look at the cockpit</button></div></div></div>`;
 }
 
@@ -335,7 +336,7 @@ function render() {
     const log = $app.querySelector(".log");
     if (log) log.scrollTop = log.scrollHeight;
   }
-  $overlay.innerHTML = S.ui.rulesOpen ? `<div class="modal" data-act="rules-close"><div class="dialog rules">${RULES}<button class="btn primary" data-act="rules-close">Got it</button></div></div>`
+  $overlay.innerHTML = S.ui.leaveOpen && m?.game ? leaveDialog(m) : S.ui.rulesOpen ? `<div class="modal" data-act="rules-close"><div class="dialog rules">${RULES}<button class="btn primary" data-act="rules-close">Got it</button></div></div>`
     : m?.game?.result && !S.ui.hideResult ? resultOverlay(m) : "";
 }
 
@@ -348,6 +349,36 @@ setInterval(() => {
     t.classList.toggle("low", left <= 10);
   }
 }, 250);
+
+function leaveDialog(m) {
+  const g = m.game, seated = m.mySeats.length > 0;
+  const lobby = seated || m.isHost
+    ? `<button class="btn primary" data-act="lobby">Back to the lobby</button>`
+    : "";
+  return `<div class="modal" data-act="leave-close"><div class="dialog leave">
+    <h2>Leave the cockpit?</h2>
+    <p>${g.result ? "The flight is over." : "<b>Back to the lobby</b> calls this flight off for both pilots; you stay at the table and can pick another scenario."}</p>
+    <div class="row">${lobby}<button class="btn" data-act="home">Leave the table</button><button class="btn ghost" data-act="leave-close">Stay</button></div></div></div>`;
+}
+
+// ------------------------------------------------------------------ explanations
+let $info = null;
+function showInfo(key, ev) {
+  const inf = infoFor(key, S.snap.game);
+  if (!inf) return;
+  hideInfo();
+  $info = document.createElement("div");
+  $info.id = "info";
+  $info.innerHTML = `<b>${esc(inf.title)}</b><p>${esc(inf.text)}</p>${inf.meta ? `<p class="meta">${esc(inf.meta)}</p>` : ""}`;
+  document.body.append($info);
+  const w = $info.offsetWidth, h = $info.offsetHeight, pad = 10;
+  let x = ev.clientX + 14, y = ev.clientY + 14;
+  if (x + w > innerWidth - pad) x = Math.max(pad, ev.clientX - w - 14);
+  if (y + h > innerHeight - pad) y = Math.max(pad, ev.clientY - h - 14);
+  $info.style.left = `${x}px`;
+  $info.style.top = `${y}px`;
+}
+function hideInfo() { $info?.remove(); $info = null; }
 
 // ------------------------------------------------------------------ events
 function selectDie(seat, id) {
@@ -371,14 +402,19 @@ function selectDie(seat, id) {
 document.addEventListener("click", async (e) => {
   const slot = e.target.closest("[data-slot]");
   const m = S.snap;
-  if (slot && m?.game && S.ui.sel) {
+  if (!e.target.closest("#info")) hideInfo();
+  if (slot && m?.game && S.ui.sel && legal(m.game, S.ui, slot.dataset.slot)) {
     const sel = S.ui.sel;
-    if (!legal(m.game, S.ui, slot.dataset.slot)) return toast("That die can't go there.");
     if (sel.token) act(sel.seat, { t: "token", slot: slot.dataset.slot });
     else act(sel.seat, { t: "place", die: sel.id, slot: slot.dataset.slot, coffee: S.ui.delta });
     S.ui.sel = null;
     S.ui.delta = 0;
     return;
+  }
+  const part = m?.game && e.target.closest("svg.board") && (slot || e.target.closest("[data-info]"));
+  if (part) {
+    if (slot && S.ui.sel && !m.game.slots[slot.dataset.slot].die) toast("That die can't go there.");
+    return showInfo(slot ? `slot:${slot.dataset.slot}` : part.dataset.info, e);
   }
   const t = e.target.closest("[data-act]");
   if (!t) return;
@@ -391,7 +427,7 @@ document.addEventListener("click", async (e) => {
       connect(r.room);
       break;
     }
-    case "home": S.code = null; S.snap = null; S.ws?.close(); history.pushState(null, "", "/"); await refreshConfig(); render(); break;
+    case "home": S.ui.leaveOpen = false; S.code = null; S.snap = null; S.ws?.close(); history.pushState(null, "", "/"); await refreshConfig(); render(); break;
     case "ability": {
       const have = new Set(m.abilities), k = t.dataset.key, max = m.game ? 0 : S.config.scenarios.find((x) => x.id === m.scenario).abilities;
       if (have.has(k)) have.delete(k);
@@ -403,7 +439,9 @@ document.addEventListener("click", async (e) => {
     case "claim": send({ type: "claim", seat: t.dataset.seat }); break;
     case "leave": send({ type: "leave" }); break;
     case "start": case "again": S.ui.hideResult = false; if (a === "again") { send({ type: "lobby" }); } send({ type: "start" }); break;
-    case "lobby": send({ type: "lobby" }); break;
+    case "lobby": S.ui.leaveOpen = false; send({ type: "lobby" }); break;
+    case "leave-menu": S.ui.leaveOpen = true; render(); break;
+    case "leave-close": if (e.target === t || t.classList.contains("btn")) { S.ui.leaveOpen = false; render(); } break;
     case "copy": navigator.clipboard?.writeText(t.dataset.link); toast("Link copied", false); break;
     case "rules": S.ui.rulesOpen = true; render(); break;
     case "rules-close": if (e.target === t || t.classList.contains("btn")) { S.ui.rulesOpen = false; render(); } break;
@@ -435,7 +473,7 @@ document.addEventListener("submit", (e) => {
   }
 });
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") { S.ui.sel = null; S.ui.rulesOpen = false; render(); }
+  if (e.key === "Escape") { hideInfo(); S.ui.sel = null; S.ui.rulesOpen = false; S.ui.leaveOpen = false; render(); }
 });
 
 async function refreshConfig() {

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import secrets
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -21,6 +22,7 @@ STATIC = Path(__file__).parent / "static"
 CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 ROOM_TTL = 3 * 3600.0
 MAX_ROOMS = 200
+log = logging.getLogger("skyteam.web")
 
 
 class RevalidatedStatic(StaticFiles):
@@ -55,6 +57,7 @@ def create_app(progress: Progress | None = None, public_url: str | None = None, 
             for code, room in list(rooms.items()):
                 if room.idle_for > ROOM_TTL:
                     rooms.pop(code, None)
+                    log.info("table %s closed after being idle", code)
                 else:
                     room.tick()
 
@@ -87,6 +90,7 @@ def create_app(progress: Progress | None = None, public_url: str | None = None, 
             if code not in rooms:
                 break
         rooms[code] = Room(code, progress)
+        log.info("table %s opened (%d open)", code, len(rooms))
         return {"room": code}
 
     @app.get("/api/rooms/{code}")
