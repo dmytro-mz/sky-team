@@ -10,42 +10,51 @@ export const COLORS = {
 };
 
 const DIE = {
-  pilot: ["#4d86f0", "#1e4fc0", "#0c2a78", "#ffffff"],
-  copilot: ["#ffb04a", "#ef7410", "#8f3d05", "#ffffff"],
-  traffic: ["#4a4a50", "#18181b", "#000000", "#ffffff"],
+  pilot: ["#6ea2ff", "#2c62dc", "#163c98", "#0d2766"],
+  copilot: ["#ffc277", "#f5871d", "#c45a07", "#7a3604"],
+  traffic: ["#5a5d66", "#26282e", "#121317", "#000"],
+};
+const PIPS = {
+  1: [[0, 0]], 2: [[-1, -1], [1, 1]], 3: [[-1, -1], [0, 0], [1, 1]], 4: [[-1, -1], [1, -1], [-1, 1], [1, 1]],
+  5: [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]], 6: [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]],
 };
 
 let uid = 0;
-/** A numbered die centred on (0,0) with side `s`, like the glossy dice in the box. */
+/** A die centred on (0,0) with side `s`: a bevelled resin cube with drilled white pips. */
 export function dieSVG(value, tone, s = 56, extra = "") {
   const c = DIE[tone] || DIE.pilot;
   const id = `d${++uid}`;
-  const r = s * 0.2, h = s / 2;
-  let out = `<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c[0]}"/><stop offset="1" stop-color="${c[1]}"/></linearGradient></defs>`;
-  out += `<rect x="${-h}" y="${-h + 3}" width="${s}" height="${s}" rx="${r}" fill="${c[2]}"/>`;
-  out += `<rect x="${-h}" y="${-h}" width="${s}" height="${s}" rx="${r}" fill="url(#${id})" stroke="${c[2]}" stroke-width="1.6"/>`;
-  out += `<rect x="${-h + 2.5}" y="${-h + 2.5}" width="${s - 5}" height="${s * 0.42}" rx="${r * 0.75}" fill="#fff" opacity="0.2"/>`;
-  out += `<text y="${s * 0.17}" text-anchor="middle" font-family="Barlow, Arial, sans-serif" font-weight="800" font-size="${s * 0.58}" fill="${c[3]}">${value}</text>`;
+  const h = s / 2, r = s * 0.22, o = s * 0.25, pr = s * 0.088;
+  let out = `<defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c[0]}"/><stop offset=".55" stop-color="${c[1]}"/><stop offset="1" stop-color="${c[2]}"/></linearGradient>
+    <radialGradient id="${id}f" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#fff" stop-opacity=".38"/><stop offset=".6" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>`;
+  out += `<rect x="${-h + 1}" y="${-h + 3.5}" width="${s - 2}" height="${s - 1}" rx="${r}" fill="#000" opacity=".35"/>`;
+  out += `<rect x="${-h}" y="${-h}" width="${s}" height="${s}" rx="${r}" fill="url(#${id})" stroke="${c[3]}" stroke-opacity=".7" stroke-width="1.2"/>`;
+  out += `<rect x="${-h + s * 0.08}" y="${-h + s * 0.07}" width="${s * 0.84}" height="${s * 0.84}" rx="${r * 0.75}" fill="url(#${id}f)"/>`;
+  out += `<path d="M${-h + r},${-h + 1.2} H${h - r}" stroke="#fff" stroke-opacity=".55" stroke-width="1.2" stroke-linecap="round"/>`;
+  for (const [px, py] of PIPS[value] || []) {
+    out += `<circle cx="${px * o}" cy="${py * o - 0.6}" r="${pr}" fill="${c[3]}" opacity=".55"/><circle cx="${px * o}" cy="${py * o + 0.4}" r="${pr * 0.92}" fill="#fbfdff"/>`;
+  }
   return out + extra;
 }
 
 export function dieHidden(tone, s = 56) {
   const c = DIE[tone] || DIE.pilot;
-  const h = s / 2;
-  return `<rect x="${-h}" y="${-h + 3}" width="${s}" height="${s}" rx="${s * 0.2}" fill="${c[2]}"/>
-    <rect x="${-h}" y="${-h}" width="${s}" height="${s}" rx="${s * 0.2}" fill="${c[1]}" stroke="${c[2]}" stroke-width="1.6"/>
-    <text y="${s * 0.17}" text-anchor="middle" font-size="${s * 0.55}" font-weight="800" fill="#fff" opacity="0.5" font-family="Barlow">?</text>`;
+  const h = s / 2, r = s * 0.22;
+  return `<rect x="${-h + 1}" y="${-h + 3.5}" width="${s - 2}" height="${s - 1}" rx="${r}" fill="#000" opacity=".3"/>
+    <rect x="${-h}" y="${-h}" width="${s}" height="${s}" rx="${r}" fill="${c[2]}" stroke="${c[3]}" stroke-width="1.2"/>
+    <rect x="${-h + s * 0.12}" y="${-h + s * 0.12}" width="${s * 0.76}" height="${s * 0.76}" rx="${r * 0.7}" fill="none" stroke="#fff" stroke-opacity=".18" stroke-width="1.5" stroke-dasharray="3 4"/>
+    <text y="${s * 0.17}" text-anchor="middle" font-size="${s * 0.5}" font-weight="800" fill="#fff" opacity=".35" font-family="Barlow">?</text>`;
 }
 
 /** Top view of an airplane pointing up, centred, ~48 wide. */
 export const PLANE_PATH = "M0,-22 C3.5,-22 4.5,-15 4.5,-8 L24,7 L24,12 L4.5,6 L3.5,16 L10,21 L10,25 L0,23 L-10,25 L-10,21 L-3.5,16 L-4.5,6 L-24,12 L-24,7 L-4.5,-8 C-4.5,-15 -3.5,-22 0,-22Z";
 
-/** The translucent white airplane token. */
+/** An airplane token: a white resin plane with a soft shadow (the board defines the #tok gradient). */
 export function planeToken(x, y, scale = 1, rot = 0, sw = 1.4) {
   return `<g transform="translate(${x} ${y}) rotate(${rot}) scale(${scale})">
-    <path d="${PLANE_PATH}" fill="#0a1020" opacity=".45" transform="translate(2 3)"/>
-    <path d="${PLANE_PATH}" fill="#f4f7fa" stroke="#9aa6b2" stroke-width="${sw}" stroke-linejoin="round"/>
-    <path d="M0,-18 V14" stroke="#c7d0d9" stroke-width="1.4"/></g>`;
+    <path d="${PLANE_PATH}" fill="#020814" opacity=".5" transform="translate(3 4)"/>
+    <path d="${PLANE_PATH}" fill="url(#tok)" stroke="#7d8b9a" stroke-width="${sw}" stroke-linejoin="round"/>
+    <path d="M0,-17 V15" stroke="#fff" stroke-opacity=".8" stroke-width="2"/><path d="M-3,-14 h6" stroke="#5b86b8" stroke-width="2.2" stroke-linecap="round"/></g>`;
 }
 
 /** The small printed airplane icon on a strip (nose up and to the right). */

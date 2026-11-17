@@ -1,51 +1,49 @@
-"""Play a few rounds in the browser with random legal clicks (dev smoke test)."""
+"""Play a flight in two browsers with random legal clicks (dev smoke test): play.py <scenario>."""
 
 import random
 import sys
 import time
 
+from _table import open_table
 from playwright.sync_api import sync_playwright
 
 scen = sys.argv[1] if len(sys.argv) > 1 else "yul"
 with sync_playwright() as p:
     b = p.chromium.launch()
-    pg = b.new_page(viewport={"width": 1700, "height": 1000})
-    errs = []
-    pg.on("pageerror", lambda e: errs.append(str(e)))
-    pg.goto("http://localhost:8765")
-    pg.click("text=Play on one device")
-    pg.wait_for_selector(".card")
-    pg.click(f'.card[data-id="{scen}"]')
-    pg.click("text=Take off")
-    pg.wait_for_selector(".board")
+    pilot, copilot, errs = open_table(b, scen)
     shots = 0
-    for step in range(200):
-        time.sleep(0.15)
-        if pg.locator(".modal .dialog.win, .modal .dialog.lose").count():
+    for step in range(400):
+        time.sleep(0.12)
+        if pilot.locator(".modal .dialog.win, .modal .dialog.lose").count():
             break
-        if pg.locator("text=Roll the dice").count():
-            pg.click("text=Roll the dice")
+        rolled = False
+        for pg in (pilot, copilot):
+            btn = pg.locator('button[data-act="roll"]:not([disabled])')
+            if btn.count():
+                btn.click()
+                rolled = True
+        if rolled:
             continue
-        if pg.locator(".cover button").count():
-            pg.click(".cover button")
-            continue
-        tok = pg.locator("button.die.token")
-        dice = pg.locator("button.die.play")
-        if tok.count():
-            tok.first.click()
-        elif dice.count():
-            random.choice([dice.nth(i) for i in range(dice.count())]).click()
-        else:
-            continue
-        slots = pg.locator(".slot.hot")
-        if slots.count():
-            slots.nth(random.randrange(slots.count())).click()
-        else:
-            pg.keyboard.press("Escape")
-        if step == 5 and shots == 0:
-            pg.screenshot(path="shots/mid_" + scen + ".png")
+        for pg in (pilot, copilot):
+            tok = pg.locator("button.die.token")
+            dice = pg.locator("button.die.play")
+            if tok.count():
+                tok.first.click()
+            elif dice.count():
+                random.choice([dice.nth(i) for i in range(dice.count())]).click()
+            else:
+                continue
+            slots = pg.locator(".slot.hot")
+            if slots.count():
+                slots.nth(random.randrange(slots.count())).click()
+            else:
+                pg.keyboard.press("Escape")
+        if step == 12 and shots == 0:
+            time.sleep(1.2)
+            pilot.screenshot(path="shots/mid_" + scen + ".png")
             shots = 1
-    pg.screenshot(path="shots/end.png")
+    time.sleep(2.8)
+    pilot.screenshot(path="shots/end.png")
     print("errors:", errs)
-    print(pg.inner_text(".status"))
+    print(pilot.inner_text(".status"))
     b.close()

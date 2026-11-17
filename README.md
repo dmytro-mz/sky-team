@@ -1,7 +1,7 @@
 # Sky Team — online
 
 Play the cooperative landing game **Sky Team** in the browser: one Pilot, one Co-Pilot, seven rounds to put the
-plane on the runway. Share a link with a friend, or play both seats on one device.
+plane on the runway. Share a link with a friend, on the same network or across the internet with `--tunnel`.
 
 ![A flight in progress](docs/screenshot.png)
 
@@ -13,15 +13,16 @@ plane on the runway. Share a link with a friend, or play both seats on one devic
 - **All 21 scenarios** of the flight log, in four difficulty tiers (Green, Yellow, Red, Black) with the modules
   Kerosene, Intern, Wind, Real-Time, Kerosene Leak and Ice Brakes, Traffic die, turn corridors, and the six
   Special Abilities (Working Together, Synchronisation, Mastery, Control, Anticipation, Adaptation).
-- **A cockpit that looks like the box**: the silver-blue control panel with blue and orange spaces and sliding
-  switches, the attitude dial and speed gauge, the navy approach and altitude strips with cream tabs, numbered
-  dice and white airplane tokens, all drawn as SVG.
+- **An animated cockpit**, drawn as SVG: a machined control panel with backlit blue and orange spaces and LED
+  switches, an attitude indicator that rolls smoothly with the Axis, a speed gauge whose markers swing as gear and
+  flaps come out, approach and altitude strips that slide down as you descend, airplanes that fly off when the radio
+  clears them, rolling dice and a touchdown / crash finale.
 - **Pick the scenario in the lobby** (laid out like the Flight Log) and choose its Special Ability cards. Landed
   scenarios are ticked on their card.
 - **Local progress**: finished scenarios are stored in `progress.json` next to where you start the server. The file
   is `.gitignore`d, so it never ends up in the repo.
-- **Two ways to play**: two browsers on a table link (each pilot only sees their own dice; the server holds the
-  state and checks every move), or *Both seats on this device* with a "pass the device" screen between turns.
+- **Online play**: each pilot joins the table link from their own browser and only sees their own dice; the server
+  holds the state and checks every move. `--tunnel` gives you a public link for a friend anywhere.
 - **Communication, minimal**: no chat. A speech-bubble symbol tells you when talking is allowed (before the roll,
   strategy only) and when it is silence time.
 
@@ -37,10 +38,17 @@ cd sky-team
 uv run skyteam serve
 ```
 
-Open <http://localhost:8000>, click **Create a table** (or **Play on one device**), choose a scenario, sit down in
-the Pilot and Co-Pilot seats, and take off. Friends on the same Wi-Fi can use the network link printed at startup.
+Open <http://localhost:8000>, click **Create a table**, choose a scenario and send the invite link to your co-pilot.
+Each of you sits in one seat (Pilot or Co-Pilot) on your own device, and you take off.
 
-`uv run skyteam serve --help` lists the options (host, port, `--progress` file).
+| Command | Who can join |
+| --- | --- |
+| `uv run skyteam serve` | You, and anyone on the same Wi-Fi / LAN (the network link printed at startup) |
+| `uv run skyteam serve --tunnel` | Anyone on the internet, through a temporary public `trycloudflare.com` link (needs `brew install cloudflared`) |
+| `uv run skyteam serve --public-url https://…` | Anyone, if you host the server behind your own domain or reverse proxy |
+
+With `--tunnel` the lobby's invite link already points at the public address. `uv run skyteam serve --help` lists all
+options (host, port, `--progress` file).
 
 ## How to play
 

@@ -68,12 +68,9 @@ def build_slots(scenario: Scenario) -> dict[str, dict[str, Any]]:
 
 
 class Game:
-    def __init__(
-        self, scenario_id: str, seed: int | None = None, hotseat: bool = False, abilities: list[str] | None = None
-    ) -> None:
+    def __init__(self, scenario_id: str, seed: int | None = None, abilities: list[str] | None = None) -> None:
         self.scenario: Scenario = BY_ID[scenario_id]
         self.rng = random.Random(seed)
-        self.hotseat = hotseat
         sc = self.scenario
         self.slots = build_slots(sc)
         self.round = 1
@@ -589,7 +586,7 @@ class Game:
 
     # ------------------------------------------------------------------ serialisation
     def view(self, viewer: str | None) -> dict[str, Any]:
-        """Game state for one seat. `viewer=None` is the hot-seat view and reveals every die."""
+        """Game state for one seat. `viewer=None` reveals every die (tests and tools)."""
         sc = self.scenario
         dice = {}
         for s in SEATS:
@@ -648,5 +645,4 @@ class Game:
             "result": self.result,
             "final": self.is_final,
             "deadline": self.deadline_ms,
-            "hotseat": self.hotseat,
         }

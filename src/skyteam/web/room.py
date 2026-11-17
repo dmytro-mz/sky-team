@@ -34,7 +34,6 @@ class Room:
         self.members: dict[str, Member] = {}
         self.host: str | None = None
         self.scenario = SCENARIOS[0].id
-        self.hotseat = False
         self.abilities: list[str] = []
         self.seats: dict[str, str | None] = dict.fromkeys(SEATS)
         self.game: Game | None = None
@@ -78,10 +77,8 @@ class Room:
         return f"{self.id} · {self.scenario} · {sum(m.online for m in self.members.values())} online"
 
     # ------------------------------------------------------------- state
-    def seat_of(self, member_id: str) -> str | None:
+    def seat_of(self, member_id: str) -> str:
         mine = [s for s in SEATS if self.seats[s] == member_id]
-        if len(mine) == 2:
-            return None  # hot-seat: sees everything
         return mine[0] if mine else "spectator"
 
     def snapshot(self, member_id: str) -> dict[str, Any]:
@@ -92,7 +89,6 @@ class Room:
             "you": member_id,
             "isHost": member_id == self.host,
             "scenario": self.scenario,
-            "hotseat": self.hotseat,
             "abilities": self.abilities,
             "abilityCatalog": {k: {"name": v[0], "text": v[1]} for k, v in ABILITIES.items()},
             "seats": {s: self._seat_public(self.seats[s]) for s in SEATS},
@@ -102,7 +98,7 @@ class Room:
             "now": int(time.time() * 1000),
         }
         if self.game is not None:
-            base["game"] = self.game.view(None if view is None else (view if view in SEATS else "spectator"))
+            base["game"] = self.game.view(view)
         return base
 
     def _seat_public(self, member_id: str | None) -> dict[str, Any] | None:
@@ -134,17 +130,10 @@ class Room:
             if len(picked) > BY_ID[self.scenario].abilities:
                 raise RoomError("That scenario uses fewer Special Ability cards")
             self.abilities = picked
-        elif kind == "hotseat":
-            self._need_lobby(host)
-            self.hotseat = bool(msg.get("on"))
-            for s in SEATS:
-                self.seats[s] = None
-            if self.hotseat:
-                self.seats = dict.fromkeys(SEATS, member_id)
         elif kind == "claim":
             self._need_lobby(True)
             seat = msg.get("seat")
-            if seat not in SEATS or self.hotseat:
+            if seat not in SEATS:
                 raise RoomError("Can't take that seat")
             if self.seats[seat] not in (None, member_id):
                 raise RoomError("That seat is taken")
@@ -161,7 +150,7 @@ class Room:
             self._need_lobby(host)
             if any(self.seats[s] is None for s in SEATS):
                 raise RoomError("Both the Pilot and the Co-Pilot seat need a player")
-            self.game = Game(self.scenario, hotseat=self.hotseat, abilities=self.abilities)
+            self.game = Game(self.scenario, abilities=self.abilities)
             self.recorded = False
             self.deadline = None
         elif kind == "lobby":

@@ -17,7 +17,7 @@ const token = store.get("st-token") || (() => {
 
 const S = {
   config: null, ws: null, code: null, snap: null, error: null,
-  ui: { sel: null, delta: 0, rr: null, cover: false, lastTurn: null, fromAxis: 0, lastAxis: 0, rulesOpen: false, seat: null },
+  ui: { sel: null, delta: 0, rr: null, rulesOpen: false, prev: null, fresh: null },
   clock: 0,
 };
 
@@ -53,18 +53,15 @@ const act = (seat, action) => send({ type: "act", seat, action });
 function onState(m) {
   const prev = S.snap;
   S.snap = m;
-  if (S.pendingHot) { S.pendingHot = false; send({ type: "hotseat", on: true }); }
   S.clock = m.now - Date.now();
   const g = m.game;
   if (g) {
-    S.ui.fromAxis = prev?.game ? prev.game.axis : g.axis;
-    if (!prev?.game || prev.game.round !== g.round || prev.status !== m.status) S.ui.sel = null;
-    if (m.hotseat && g.phase === "place") {
-      const seat = g.pendingToken ? g.pendingToken.seat : g.turn;
-      if (S.ui.lastTurn !== seat && prev?.game?.phase === "place") S.ui.cover = true;
-      S.ui.lastTurn = seat;
-    }
-    if (g.phase !== "place") { S.ui.lastTurn = null; S.ui.cover = false; }
+    const p = prev?.game;
+    // animate from the previous state only within the same flight
+    S.ui.prev = p && p.scenario.id === g.scenario.id && g.round >= p.round && !(p.result && !g.result) ? p : null;
+    const old = new Set(p ? ["pilot", "copilot"].flatMap((s) => p.dice[s].map((d) => `${s}:${d.id}`)) : []);
+    S.ui.fresh = new Set(["pilot", "copilot"].flatMap((s) => g.dice[s].map((d) => `${s}:${d.id}`)).filter((k) => !old.has(k)));
+    if (!p || p.round !== g.round || prev.status !== m.status) S.ui.sel = null;
     if (S.ui.sel && !selStillValid(g)) S.ui.sel = null;
     if (!g.reroll) S.ui.rr = null;
   } else S.ui.sel = null;
@@ -88,7 +85,6 @@ function homeView() {
       <p class="tag">Two pilots. One landing. No talking about your dice.</p>
       <div class="home-actions">
         <button class="btn primary big" data-act="create">Create a table</button>
-        <button class="btn big" data-act="create-local">Play on one device</button>
       </div>
       <form class="join" data-form="join"><input name="code" maxlength="5" placeholder="TABLE CODE" autocomplete="off"><button class="btn">Join</button></form>
       <div class="home-progress"><b>${done}</b> of ${total} landings completed on this machine</div>
@@ -119,7 +115,7 @@ function lobbyView(m) {
     const o = m.seats[s];
     const mine = m.seats[s] && m.mySeats.includes(s);
     return `<div class="seat ${s}"><b>${cap(s)}</b><span>${o ? esc(o.name) + (o.online ? "" : " (away)") : "empty"}</span>
-      ${m.hotseat ? "" : mine ? `<button class="btn small" data-act="leave">Leave</button>` : o ? "" : `<button class="btn small primary" data-act="claim" data-seat="${s}">Sit here</button>`}</div>`;
+      ${mine ? `<button class="btn small" data-act="leave">Leave</button>` : o ? "" : `<button class="btn small primary" data-act="claim" data-seat="${s}">Sit here</button>`}</div>`;
   };
   const link = `${S.config.public_url || S.config.lan_url || location.origin}/r/${m.room}`;
   const ready = m.seats.pilot && m.seats.copilot;
@@ -142,57 +138,54 @@ function lobbyView(m) {
             <div class="abgrid">${Object.entries(m.abilityCatalog).map(([k, v]) => `<button class="abbtn ${m.abilities.includes(k) ? "on" : ""}" data-act="ability" data-key="${k}" ${host ? "" : "disabled"}><b>${esc(v.name)}</b><span>${esc(v.text)}</span></button>`).join("")}</div></div>` : ""}
           ${prog[sc.id]?.wins ? `<div class="record">✓ Landed ${prog[sc.id].wins}× · ${prog[sc.id].attempts} flights</div>` : prog[sc.id] ? `<div class="record lost">${prog[sc.id].attempts} attempts so far</div>` : ""}
         </div>
-        <div class="mode">
-          <label class="switch"><input type="checkbox" data-act="hotseat" ${m.hotseat ? "checked" : ""} ${host ? "" : "disabled"}> Both seats on this device</label>
-        </div>
         <div class="seats">${seat("pilot")}${seat("copilot")}</div>
-        ${m.hotseat ? "" : `<div class="invite"><input readonly value="${esc(link)}" onclick="this.select()"><button class="btn small" data-act="copy" data-link="${esc(link)}">Copy link</button></div>`}
+        <div class="invite"><input readonly value="${esc(link)}" onclick="this.select()"><button class="btn small" data-act="copy" data-link="${esc(link)}">Copy link</button></div>
+        ${inviteNote()}
         <button class="btn primary big wide" data-act="start" ${host && ready ? "" : "disabled"}>${host ? (ready ? "Take off" : "Both seats need a pilot") : "Waiting for the host"}</button>
       </aside>
     </div></div>`;
+}
+
+function inviteNote() {
+  const host = location.hostname;
+  const local = host === "localhost" || host === "127.0.0.1";
+  if (S.config.public_url || host.endsWith("trycloudflare.com")) return `<p class="note">Anyone with this link can join from anywhere.</p>`;
+  if (local && !S.config.lan_url) return `<p class="note">This link only works on this computer. Restart with <code>uv run skyteam serve --tunnel</code> to invite a friend over the internet.</p>`;
+  return `<p class="note">Works on the same Wi-Fi. For a friend elsewhere, restart with <code>uv run skyteam serve --tunnel</code>.</p>`;
 }
 
 // ------------------------------------------------------------------ game
 const COMM_ON = `<svg viewBox="0 0 40 36" class="comm"><path d="M4 4h32a2 2 0 0 1 2 2v18a2 2 0 0 1-2 2H18l-9 8v-8H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" fill="#3fd06a"/><path d="M10 12h20M10 18h14" stroke="#0b2415" stroke-width="3" stroke-linecap="round"/></svg>`;
 const COMM_OFF = `<svg viewBox="0 0 40 36" class="comm"><path d="M4 4h32a2 2 0 0 1 2 2v18a2 2 0 0 1-2 2H18l-9 8v-8H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" fill="#59323a"/><path d="M10 12h20M10 18h14" stroke="#2a141a" stroke-width="3" stroke-linecap="round"/><path d="M5 31 35 3" stroke="#ff5a4a" stroke-width="4.5" stroke-linecap="round"/></svg>`;
 
-function viewSeats(m) {
-  return m.hotseat ? ["pilot", "copilot"] : m.mySeats;
-}
-
-function currentSeat(m, g) {
-  if (m.hotseat) return g.pendingToken ? g.pendingToken.seat : g.turn;
-  return m.mySeats[0] || null;
-}
+const viewSeats = (m) => m.mySeats;
 
 function dieEl(d, seat, g, m) {
   const mine = viewSeats(m).includes(seat);
   const t = seat === "pilot" ? "pilot" : "copilot";
-  if (d.hidden) return `<div class="die"><svg viewBox="-34 -34 68 68">${dieHidden(t, 56)}</svg></div>`;
+  const roll = S.ui.fresh?.has(`${seat}:${d.id}`) ? ` rolling" style="animation-delay:${(d.id % 4) * 0.09}s` : "";
+  if (d.hidden) return `<div class="die${roll}"><svg viewBox="-34 -34 68 68">${dieHidden(t, 56)}</svg></div>`;
   const sel = S.ui.sel && !S.ui.sel.token && S.ui.sel.id === d.id;
   const inRr = S.ui.rr && S.ui.rr[seat]?.has(d.id);
   const val = sel ? d.value + S.ui.delta : d.value;
   const playable = mine && g.phase === "place" && !g.pendingToken && (g.turn === seat || d.wild);
-  const cls = ["die", sel ? "sel" : "", playable ? "play" : "", inRr ? "rr" : "", d.wild ? "wild" : ""].join(" ");
+  const cls = ["die", sel ? "sel" : "", playable ? "play" : "", inRr ? "rr" : "", d.wild ? "wild" : ""].join(" ") + roll;
   return `<button class="${cls}" data-act="die" data-id="${d.id}" data-seat="${seat}" ${mine ? "" : "disabled"}>
     <svg viewBox="-34 -34 68 68">${dieSVG(val, t, 56)}</svg>${d.wild ? `<span class="star">★</span>` : ""}${sel && S.ui.delta ? `<span class="mod">${S.ui.delta > 0 ? "+" : ""}${S.ui.delta}</span>` : ""}</button>`;
 }
 
 function trayView(seat, m, g) {
   const mine = viewSeats(m).includes(seat);
-  const hide = m.hotseat && (S.ui.cover || (g.phase === "place" && seat !== currentSeat(m, g)) || g.phase === "discuss");
   const dice = g.dice[seat];
   const pend = g.pendingToken && g.pendingToken.seat === seat && g.pendingToken.value;
-  let body;
-  if (hide) body = dice.map(() => `<div class="die"><svg viewBox="-34 -34 68 68">${dieHidden(seat === "pilot" ? "pilot" : "copilot", 56)}</svg></div>`).join("");
-  else body = dice.map((d) => dieEl(d, seat, g, m)).join("");
-  if (pend && !hide) {
+  let body = dice.map((d) => dieEl(d, seat, g, m)).join("");
+  if (pend) {
     const sel = S.ui.sel?.token;
     body += `<button class="die token play ${sel ? "sel" : ""}" data-act="token" data-seat="${seat}"><svg viewBox="-34 -34 68 68">${dieSVG(pend, seat === "pilot" ? "pilot" : "copilot", 56)}</svg><span class="star">Intern</span></button>`;
   }
   const active = g.phase === "place" && !g.result && (g.pendingToken ? g.pendingToken.seat === seat : g.turn === seat);
   const note = g.phase === "discuss" ? (g.ready[seat] ? "ready" : "") : active ? "your turn" : "";
-  return `<div class="tray ${seat} ${active ? "active" : ""}"><div class="tray-head"><b>${cap(seat)}</b>${mine ? `<span class="you">${m.hotseat ? "" : "you"}</span>` : ""}<span class="state">${note}</span></div>
+  return `<div class="tray ${seat} ${active ? "active" : ""}"><div class="tray-head"><b>${cap(seat)}</b>${mine ? `<span class="you">you</span>` : ""}<span class="state">${note}</span></div>
     <div class="dice">${body || `<span class="muted">${g.phase === "place" ? "all dice placed" : "dice appear after the roll"}</span>`}</div></div>`;
 }
 
@@ -265,7 +258,6 @@ function gameView(m) {
   const g = m.game;
   const sc = g.scenario;
   const comm = g.communication;
-  const cover = m.hotseat && S.ui.cover && g.phase === "place" && !g.result;
   return `<div class="game">
     <header class="top">
       <b class="brand">SKY TEAM</b>
@@ -282,8 +274,23 @@ function gameView(m) {
       <div class="boardwrap" id="boardwrap">${boardSVG(g, S.ui)}</div>
       <aside class="side right">${trayView("copilot", m, g)}${infoPanel(m, g)}</aside>
     </div>
-    ${cover ? `<div class="cover"><div><h2>Pass the device to the ${cap(S.ui.lastTurn)}</h2><p>Don't peek at the other pilot's dice.</p><button class="btn primary big" data-act="uncover">I'm the ${cap(S.ui.lastTurn)}</button></div></div>` : ""}
   </div>`;
+}
+
+/** A small animated scene for the end of a flight: a touchdown on the runway, or a plane spiralling down. */
+function finaleScene(won) {
+  const plane = `<path d="${PLANE_PATH}" fill="#f4f7fa" stroke="#7d8b9a" stroke-width="1.5"/>`;
+  if (won) return `<svg viewBox="0 0 360 150" class="finale">
+    <defs><linearGradient id="fsky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb46b"/><stop offset=".6" stop-color="#ffd9a1"/><stop offset="1" stop-color="#f6efe0"/></linearGradient></defs>
+    <rect width="360" height="150" rx="14" fill="url(#fsky)"/>
+    <path d="M0,118 H360 V150 H0Z" fill="#3c4a3a"/><path d="M40,124 L320,124 L350,146 L10,146Z" fill="#30343a"/>
+    ${[0, 1, 2, 3, 4, 5].map((i) => `<rect x="${70 + i * 40}" y="133" width="22" height="3" fill="#fff" opacity=".85"/>`).join("")}
+    <g class="touchdown"><g transform="rotate(90) scale(.9)">${plane}</g></g>
+    <g class="sparkles">${[0, 1, 2].map((i) => `<circle cx="${210 + i * 18}" cy="122" r="${5 - i}" fill="#fff" opacity=".7"/>`).join("")}</g></svg>`;
+  return `<svg viewBox="0 0 360 150" class="finale">
+    <rect width="360" height="150" rx="14" fill="#2a3346"/><path d="M0,126 H360 V150 H0Z" fill="#1d2430"/>
+    <g class="smoke">${[0, 1, 2, 3].map((i) => `<circle cx="${110 + i * 26}" cy="${40 + i * 14}" r="${10 + i * 3}" fill="#8592a6" opacity="${0.4 - i * 0.07}"/>`).join("")}</g>
+    <g class="spiral"><g transform="rotate(135) scale(.9)">${plane}</g></g></svg>`;
 }
 
 function resultOverlay(m) {
@@ -292,7 +299,7 @@ function resultOverlay(m) {
   const won = g.result.won;
   const next = S.config.scenarios.find((s) => s.id === m.scenario);
   return `<div class="modal"><div class="dialog ${won ? "win" : "lose"}">
-    <svg viewBox="-60 -50 120 100" class="logo small"><path d="${PLANE_PATH}" transform="scale(1.6) ${won ? "" : "rotate(40)"}" fill="${won ? "#3fd06a" : "#ff5a4a"}"/></svg>
+    ${finaleScene(won)}
     <h2>${won ? "Touchdown!" : "Mission failed"}</h2>
     <p>${esc(g.result.reason)}</p>
     ${won ? `<p class="muted">${esc(next.code)} · ${esc(next.airport)} is now marked as landed.</p>` : ""}
@@ -321,8 +328,10 @@ function render() {
   else if (m.status === "lobby") $app.innerHTML = lobbyView(m);
   else {
     $app.innerHTML = gameView(m);
-    const plane = $app.querySelector(".axisplane");
-    if (plane) requestAnimationFrame(() => requestAnimationFrame(() => { plane.style.transform = `rotate(${plane.dataset.deg}deg)`; }));
+    S.ui.prev = null; // a re-render without a new state does not replay the animations
+    S.ui.fresh = null;
+    const tweens = $app.querySelectorAll("[data-tw]");
+    if (tweens.length) requestAnimationFrame(() => requestAnimationFrame(() => tweens.forEach((el) => { el.style.transform = el.dataset.tw; })));
     const log = $app.querySelector(".log");
     if (log) log.scrollTop = log.scrollHeight;
   }
@@ -376,11 +385,10 @@ document.addEventListener("click", async (e) => {
   const a = t.dataset.act;
   const g = m?.game;
   switch (a) {
-    case "create": case "create-local": {
+    case "create": {
       const r = await (await fetch("/api/rooms", { method: "POST" })).json();
       history.pushState(null, "", `/r/${r.room}`);
       connect(r.room);
-      if (a === "create-local") S.pendingHot = true;
       break;
     }
     case "home": S.code = null; S.snap = null; S.ws?.close(); history.pushState(null, "", "/"); await refreshConfig(); render(); break;
@@ -392,7 +400,6 @@ document.addEventListener("click", async (e) => {
       break;
     }
     case "scenario": send({ type: "scenario", id: t.dataset.id }); break;
-    case "hotseat": send({ type: "hotseat", on: t.checked }); break;
     case "claim": send({ type: "claim", seat: t.dataset.seat }); break;
     case "leave": send({ type: "leave" }); break;
     case "start": case "again": S.ui.hideResult = false; if (a === "again") { send({ type: "lobby" }); } send({ type: "start" }); break;
@@ -401,7 +408,6 @@ document.addEventListener("click", async (e) => {
     case "rules": S.ui.rulesOpen = true; render(); break;
     case "rules-close": if (e.target === t || t.classList.contains("btn")) { S.ui.rulesOpen = false; render(); } break;
     case "close-result": S.ui.hideResult = true; render(); break;
-    case "uncover": S.ui.cover = false; render(); break;
     case "roll": for (const s of viewSeats(m)) act(s, { t: "ready" }); break;
     case "die": selectDie(t.dataset.seat, Number(t.dataset.id)); break;
     case "token": S.ui.sel = { token: true, seat: t.dataset.seat, value: g.pendingToken.value }; S.ui.delta = 0; render(); break;
@@ -416,7 +422,6 @@ document.addEventListener("click", async (e) => {
       const seat = S.ui.rrSeat;
       act(seat, { t: "reroll_pick", dice: [...(S.ui.rr?.[seat] || [])] });
       S.ui.rrSeat = null;
-      if (m.hotseat) S.ui.cover = true, S.ui.lastTurn = seat === "pilot" ? "copilot" : "pilot";
       break;
     }
   }
